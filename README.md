@@ -36,8 +36,9 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
 **Importierte Dateien** (Bilder oder PDFs, die man nur zur Texterkennung hineinzieht) behalten ihren
 Namen mit angehängtem `_ocr`, z. B. `Mietvertrag.pdf` → `Mietvertrag_ocr.pdf`. Wird ein importierter
 Sammelscan in mehrere Dokumente getrennt, heißen sie `Mietvertrag_ocr_01.pdf`, `…_ocr_02.pdf` usw.
-Maßgeblich ist die erste Seite eines Dokuments. Vorhandene Dateien werden nie überschrieben, stattdessen
-wird `_2`, `_3` … angehängt.
+Sie werden **neben der Originaldatei** gespeichert. Nur wenn dort kein Schreibrecht besteht, landen sie
+im Zielordner. Maßgeblich ist die erste Seite eines Dokuments. Vorhandene Dateien werden nie
+überschrieben, stattdessen wird `_2`, `_3` … angehängt.
 
 Beispiel: Ein Stapel mit drei Briefen ergibt `Scan_2026_09_25_003_01.pdf`, `…_003_02.pdf` und `…_003_03.pdf`.
 Im Stapelmodus ist jeder Einzug ein eigener Batch. Eine Trennmarke auf einer weggelassenen Leerseite gilt
