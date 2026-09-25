@@ -13,6 +13,7 @@ enum SettingsKey {
     static let filePrefix = "filePrefix"
     static let autoSaveAfterScan = "autoSaveAfterScan"
     static let autoSplit = "autoSplit"
+    static let paperFormat = "paperFormat"
 }
 
 /// Momentaufnahme der Einstellungen (gespeichert in UserDefaults, bearbeitet per @AppStorage).
@@ -28,6 +29,7 @@ struct AppSettings {
     var filePrefix: String
     var autoSaveAfterScan: Bool
     var autoSplit: Bool
+    var paperFormat: PaperFormat
 
     static let languagePresets: [(label: String, value: String)] = [
         ("Deutsch + Englisch", "de-DE,en-US"),
@@ -56,6 +58,7 @@ struct AppSettings {
             SettingsKey.filePrefix: "Scan_",
             SettingsKey.autoSaveAfterScan: false,
             SettingsKey.autoSplit: true,
+            SettingsKey.paperFormat: PaperFormat.a4.rawValue,
         ])
     }
 
@@ -74,7 +77,8 @@ struct AppSettings {
                               isDirectory: true),
             filePrefix: DocumentNaming.sanitizedPrefix(d.string(forKey: SettingsKey.filePrefix) ?? "Scan_"),
             autoSaveAfterScan: d.bool(forKey: SettingsKey.autoSaveAfterScan),
-            autoSplit: d.bool(forKey: SettingsKey.autoSplit)
+            autoSplit: d.bool(forKey: SettingsKey.autoSplit),
+            paperFormat: PaperFormat(rawValue: d.string(forKey: SettingsKey.paperFormat) ?? "") ?? .a4
         )
     }
 }

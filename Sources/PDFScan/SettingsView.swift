@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.filePrefix) private var filePrefix = "Scan_"
     @AppStorage(SettingsKey.autoSaveAfterScan) private var autoSave = false
     @AppStorage(SettingsKey.autoSplit) private var autoSplit = true
+    @AppStorage(SettingsKey.paperFormat) private var paperFormat = PaperFormat.a4
 
     var body: some View {
         Form {
@@ -28,6 +29,12 @@ struct SettingsView: View {
                     Text("Farbe").tag(false)
                     Text("Graustufen (kleinere Dateien)").tag(true)
                 }
+                Picker("Papierformat", selection: $paperFormat) {
+                    ForEach(PaperFormat.allCases) { format in
+                        Text(format.label).tag(format)
+                    }
+                }
+                .help("Kleinere Blätter werden mit Rand erfasst, größere abgeschnitten")
                 Toggle("Beidseitig scannen (Duplex)", isOn: $duplex)
             }
 

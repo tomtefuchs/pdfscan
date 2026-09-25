@@ -79,7 +79,11 @@ final class AppModel: ObservableObject {
         status = "Scanne…"
         scanner.startScan(.init(resolution: settings.resolution,
                                 grayscale: settings.grayscale,
-                                duplex: settings.duplex))
+                                duplex: settings.duplex,
+                                paperFormat: settings.paperFormat))
+        if let format = scanner.activeFormatDescription {
+            status = "Scanne (Format \(format))…"
+        }
     }
 
     private func addScannedFile(_ url: URL, dpi: Double) {
@@ -405,6 +409,28 @@ final class AppModel: ObservableObject {
                     self.status = "Speichern fehlgeschlagen"
                 }
             }
+        }
+    }
+
+    func showScannerInfo() {
+        let text = scanner.diagnostics()
+        let alert = NSAlert()
+        alert.messageText = "Scanner-Info"
+        alert.informativeText = "Diese Angaben helfen bei Problemen mit Format oder Treiber."
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 260))
+        scroll.hasVerticalScroller = true
+        let textView = NSTextView(frame: scroll.bounds)
+        textView.string = text
+        textView.isEditable = false
+        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.autoresizingMask = [.width]
+        scroll.documentView = textView
+        alert.accessoryView = scroll
+        alert.addButton(withTitle: "Kopieren")
+        alert.addButton(withTitle: "Schließen")
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
         }
     }
 

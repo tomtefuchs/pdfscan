@@ -1,5 +1,6 @@
 import Foundation
 import ImageCaptureCore
+import PDFScanCore
 import UniformTypeIdentifiers
 
 /// Findet Scanner (USB, WLAN/Bonjour, freigegeben) über ImageCaptureCore und steuert den Einzug.
@@ -15,6 +16,7 @@ final class ScannerService: NSObject, ObservableObject {
         var resolution: Int
         var grayscale: Bool
         var duplex: Bool
+        var paperFormat: PaperFormat
     }
 
     @Published private(set) var scanners: [ICScannerDevice] = []
@@ -22,6 +24,8 @@ final class ScannerService: NSObject, ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var supportsDuplex = false
     @Published private(set) var usesFeeder = false
+    /// Tatsächlich eingestelltes Papierformat des letzten Scans, für die Statusanzeige.
+    @Published private(set) var activeFormatDescription: String?
 
     /// Wird pro gescannter Seite (Datei) aufgerufen – auf dem Main-Thread.
     var onPageScanned: ((URL, Double) -> Void)?
@@ -81,8 +85,11 @@ final class ScannerService: NSObject, ObservableObject {
             unit.bitDepth = .depth8Bits
             activeResolution = Double(unit.resolution)
 
-            if let feeder = unit as? ICScannerFunctionalUnitDocumentFeeder, feeder.supportsDuplexScanning {
-                feeder.duplexScanningEnabled = options.duplex
+            if let feeder = unit as? ICScannerFunctionalUnitDocumentFeeder {
+                if feeder.supportsDuplexScanning {
+                    feeder.duplexScanningEnabled = options.duplex
+                }
+                applyPaperFormat(options.paperFormat, to: feeder)
             }
             if let flatbed = unit as? ICScannerFunctionalUnitFlatbed {
                 flatbed.scanArea = NSRect(origin: .zero, size: flatbed.physicalSize)
@@ -99,6 +106,97 @@ final class ScannerService: NSObject, ObservableObject {
 
     func cancelScan() {
         selectedScanner?.cancelScan()
+    }
+
+    /// Setzt das Papierformat des Einzugs. Ohne ausdrückliche Angabe nimmt manch ein Treiber
+    /// (beobachtet: Epson FF-680W) A5 und schneidet A4-Blätter ab.
+    private func applyPaperFormat(_ format: PaperFormat, to feeder: ICScannerFunctionalUnitDocumentFeeder) {
+        guard format != .driverDefault else {
+            activeFormatDescription = describe(feeder)
+            return
+        }
+        let candidates = paperCandidates(feeder)
+        if let match = format.bestMatch(in: candidates),
+           let type = ICScannerDocumentType(rawValue: match.id) {
+            feeder.documentType = type
+        } else if let raw = Self.fallbackRawValue(format),
+                  feeder.supportedDocumentTypes.contains(Int(raw)),
+                  let type = ICScannerDocumentType(rawValue: raw) {
+            // Treiber liefert keine brauchbaren Größen: Nummern laut ImageCaptureCore-Header.
+            feeder.documentType = type
+        }
+        activeFormatDescription = describe(feeder)
+    }
+
+    /// Alle vom Einzug angebotenen Formate mit ihrer tatsächlichen Größe in mm.
+    private func paperCandidates(_ feeder: ICScannerFunctionalUnitDocumentFeeder) -> [PaperFormat.Candidate] {
+        let original = feeder.documentType
+        defer { feeder.documentType = original }
+        return feeder.supportedDocumentTypes.compactMap { raw -> PaperFormat.Candidate? in
+            guard let type = ICScannerDocumentType(rawValue: UInt(raw)) else { return nil }
+            feeder.documentType = type
+            let size = feeder.documentSize
+            return PaperFormat.Candidate(id: UInt(raw), widthMM: millimeters(size.width, feeder),
+                                         heightMM: millimeters(size.height, feeder))
+        }
+    }
+
+    private func millimeters(_ value: CGFloat, _ unit: ICScannerFunctionalUnit) -> Double {
+        PaperFormat.millimeters(Double(value), unitRawValue: UInt(unit.measurementUnit.rawValue),
+                                resolution: Double(unit.resolution))
+    }
+
+    private func describe(_ feeder: ICScannerFunctionalUnitDocumentFeeder) -> String {
+        let size = feeder.documentSize
+        return String(format: "%.0f × %.0f mm", millimeters(size.width, feeder), millimeters(size.height, feeder))
+    }
+
+    private static func fallbackRawValue(_ format: PaperFormat) -> UInt? {
+        switch format {
+        case .a4: return 1
+        case .letter: return 3
+        case .legal: return 4
+        case .a5: return 5
+        case .largest, .driverDefault: return nil
+        }
+    }
+
+    /// Klartext-Übersicht über den Scanner – zum Nachvollziehen von Treiber-Eigenheiten.
+    func diagnostics() -> String {
+        guard let scanner = selectedScanner else { return "Kein Scanner ausgewählt." }
+        var lines = ["Scanner: \(name(of: scanner))", "Verbindung: \(phase)"]
+        let available = scanner.availableFunctionalUnitTypes.map { "\($0)" }.joined(separator: ", ")
+        lines.append("Funktionseinheiten (Typ-Nr.): \(available)")
+        let unit: ICScannerFunctionalUnit? = scanner.selectedFunctionalUnit
+        guard let unit else { return lines.joined(separator: "\n") }
+        lines.append("Aktive Einheit: \(type(of: unit))")
+        lines.append("Auflösungen: \(unit.supportedResolutions.map { String($0) }.joined(separator: ", ")) dpi")
+        lines.append("Maßeinheit (Nr.): \(unit.measurementUnit.rawValue)")
+        if let feeder = unit as? ICScannerFunctionalUnitDocumentFeeder {
+            lines.append("Duplex: \(feeder.supportsDuplexScanning ? "ja" : "nein")")
+            lines.append("Aktuelles Format: Nr. \(feeder.documentType.rawValue), \(describe(feeder))")
+            lines.append("Angebotene Formate:")
+            for c in paperCandidates(feeder) {
+                lines.append("  Nr. \(c.id): " + String(format: "%.1f × %.1f mm", c.widthMM, c.heightMM))
+            }
+        }
+        let features: [ICScannerFeature]? = unit.vendorFeatures
+        if let features, !features.isEmpty {
+            lines.append("Herstellerfunktionen:")
+            for feature in features {
+                let name: String? = feature.humanReadableName
+                var entry = "  \(name ?? "?")"
+                if let e = feature as? ICScannerFeatureEnumeration {
+                    entry += ": \(e.menuItemLabels.joined(separator: " | ")) (aktuell: \(e.currentValue))"
+                } else if let b = feature as? ICScannerFeatureBoolean {
+                    entry += ": \(b.value ? "an" : "aus")"
+                }
+                lines.append(entry)
+            }
+        } else {
+            lines.append("Herstellerfunktionen: keine")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Intern

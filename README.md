@@ -71,7 +71,7 @@ per Rechtsklick → „Öffnen“ starten oder vorher `xattr -dr com.apple.quara
 3. Seiten prüfen und an jeder Stelle, an der ein neues Dokument beginnt, ⌘T drücken.
 4. **Speichern** (⌘S). Die PDFs landen in `~/Dokumente/Scans/`, z. B. `Scan_2026_09_25_001_01.pdf`.
 
-Der Zielordner, das Präfix, die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
+Der Zielordner, das Präfix, das Papierformat (Standard A4), die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
 **PDFScan → Einstellungen** (⌘,) ändern.
 
 ## Automatische Trennung
@@ -90,6 +90,10 @@ Unterschiede zum Skript:
 - Einschübe stehen in der Seitenliste direkt hinter ihrem Dokument.
 
 ## Tipps für alte Dokumente
+
+- **Ränder abgeschnitten?** Das Papierformat in den Einstellungen muss mindestens so groß sein wie das
+  größte Blatt im Stapel. Kleinere Blätter bekommen dann einen Rand. Unter **Scanner → Scanner-Info…**
+  steht, welche Formate der Treiber anbietet.
 
 - **300 dpi** reichen für normale Schreibmaschinen- und Druckschrift. **400 dpi** lohnen sich bei sehr kleiner Schrift.
 - **Graustufen** geben deutlich kleinere Dateien. Farbe lohnt sich bei Stempeln, Farbmarkierungen und Fotos.

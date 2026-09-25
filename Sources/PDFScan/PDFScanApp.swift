@@ -47,6 +47,7 @@ struct PDFScanApp: App {
                     .keyboardShortcut("r")
                 Button("Scan abbrechen") { model.scanner.cancelScan() }
                     .keyboardShortcut(".")
+                Button("Scanner-Info…") { model.showScannerInfo() }
                 Divider()
                 Button("Automatisch in Dokumente trennen") { model.autoSplit() }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
