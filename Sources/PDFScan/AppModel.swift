@@ -38,7 +38,8 @@ struct ScanPage: Identifiable {
 final class AppModel: ObservableObject {
     @Published var pages: [ScanPage] = []
     @Published var selection: ScanPage.ID?
-    @Published var status = "Bereit"
+    /// Meldung in der Statusleiste; leer = nichts anzeigen (den Scannerzustand zeigt die Kapsel).
+    @Published var status = ""
     @Published var errorMessage: String?
     @Published private(set) var pendingJobs = 0
     @Published private(set) var isSaving = false
@@ -210,7 +211,8 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             if AppSettings.current.autoSplit {
                 if self.markersEditedManually {
-                    self.status += " – automatische Trennung übersprungen (Trennstellen von Hand geändert)"
+                    let note = "Automatische Trennung übersprungen (Trennstellen von Hand geändert)"
+                    self.status = self.status.isEmpty ? note : self.status + " – " + note
                 } else {
                     self.applyAutoSplit()
                 }

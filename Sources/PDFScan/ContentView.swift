@@ -88,19 +88,7 @@ struct StatusBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            scannerState
-            if model.pendingJobs > 0 || model.isSaving {
-                ProgressView().controlSize(.small)
-            }
-            Text(model.status)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(Theme.textPrimary)
-            if model.pendingJobs > 0 {
-                Text("Texterkennung: \(model.pendingJobs) ausstehend")
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            Spacer()
+            Spacer(minLength: 0)
             if model.lastSavedURL != nil {
                 Button {
                     model.revealLastSaved()
@@ -110,6 +98,20 @@ struct StatusBar: View {
                 .buttonStyle(.borderless)
                 .foregroundStyle(Theme.accent)
             }
+            if model.pendingJobs > 0 {
+                Text("Texterkennung: \(model.pendingJobs) ausstehend")
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            if !model.status.isEmpty {
+                Text(model.status)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            if model.pendingJobs > 0 || model.isSaving {
+                ProgressView().controlSize(.small)
+            }
+            scannerState
         }
         .font(.callout)
         .padding(.horizontal, 14)
