@@ -22,3 +22,23 @@ jobs:
         with:
           name: PDFScan
           path: build/PDFScan.zip
+      - name: Screenshot
+        continue-on-error: true
+        run: |
+          printf 'Stadtwerke Beispielstadt\nHauptstrasse 1, 10115 Berlin\n\n\nSehr geehrte Frau Beispiel,\n\nhiermit erhalten Sie Ihre Jahresabrechnung fuer Strom.\nDer Verbrauch betrug 2.345 kWh.\n\nMit freundlichen Gruessen\n\n\nSeite 1/1\n' > "$RUNNER_TEMP/Brief.txt"
+          cupsfilter "$RUNNER_TEMP/Brief.txt" > "$RUNNER_TEMP/Brief.pdf" 2>/dev/null
+          PDFSCAN_IMPORT="$RUNNER_TEMP/Brief.pdf" build/PDFScan.app/Contents/MacOS/PDFScan &
+          APP_PID=$!
+          sleep 25
+          screencapture -x build/screenshot.png
+          kill $APP_PID || true
+          sips -Z 1100 -s format jpeg -s formatOptions 55 build/screenshot.png --out build/screenshot.jpg
+          echo "SCREENSHOT-BEGIN"
+          base64 -b 120 -i build/screenshot.jpg
+          echo "SCREENSHOT-END"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Screenshot
+          path: build/screenshot.png
+          if-no-files-found: ignore

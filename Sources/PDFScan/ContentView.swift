@@ -8,7 +8,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             PageListView()
-                .navigationSplitViewColumnWidth(min: 260, ideal: 320)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 360)
         } detail: {
             PageDetailView()
         }
@@ -19,25 +19,32 @@ struct ContentView: View {
                     Button {
                         scanner.cancelScan()
                     } label: {
-                        Label("Abbrechen", systemImage: "stop.circle")
+                        IconLabel("Abbrechen", systemImage: "stop.circle.fill")
                     }
+                    .tint(Theme.danger)
+                    .buttonStyle(.borderedProminent)
                 } else {
                     Button {
                         model.startScan()
                     } label: {
-                        Label("Scannen", systemImage: "scanner")
+                        IconLabel("Scannen", systemImage: "scanner.fill")
+                            .labelStyle(.titleAndIcon)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
                     .disabled(scanner.selectedScanner == nil || scanner.phase == .connecting)
                     .help("Alle Blätter im Einzug scannen und an das aktuelle Dokument anhängen (⌘R)")
                 }
                 Button {
                     model.showImportPanel()
                 } label: {
-                    Label("Importieren", systemImage: "square.and.arrow.down")
+                    IconLabel("Importieren", systemImage: "square.and.arrow.down.fill")
                 }
                 .help("Bilder oder PDFs importieren und per OCR durchsuchbar machen")
             }
         }
+        .toolbarBackground(Theme.window, for: .windowToolbar)
+        .toolbarBackground(.visible, for: .windowToolbar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             StatusBar()
         }
@@ -51,6 +58,8 @@ struct ContentView: View {
             model.importFiles(urls)
             return true
         }
+        .tint(Theme.accent)
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -58,7 +67,7 @@ private struct ScannerPicker: View {
     @EnvironmentObject private var scanner: ScannerService
 
     var body: some View {
-        Picker("Scanner", selection: Binding<ObjectIdentifier?>(
+        Picker(selection: Binding<ObjectIdentifier?>(
             get: { scanner.selectedScanner.map(ObjectIdentifier.init) },
             set: { id in scanner.select(scanner.scanners.first { ObjectIdentifier($0) == id }) }
         )) {
@@ -68,8 +77,10 @@ private struct ScannerPicker: View {
             ForEach(scanner.scanners, id: \.self) { device in
                 Text(scanner.name(of: device)).tag(Optional(ObjectIdentifier(device)))
             }
+        } label: {
+            IconLabel("Scanner", systemImage: "printer.fill")
         }
-        .frame(minWidth: 200)
+        .frame(minWidth: 220)
         .help("Scanner muss in der App „Digitalbilder“ sichtbar sein (Epson-ICA-Treiber)")
     }
 }
@@ -79,49 +90,50 @@ private struct StatusBar: View {
     @EnvironmentObject private var scanner: ScannerService
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             scannerState
-            Divider().frame(height: 14)
             if model.pendingJobs > 0 || model.isSaving {
                 ProgressView().controlSize(.small)
             }
             Text(model.status)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .foregroundStyle(Theme.textPrimary)
             if model.pendingJobs > 0 {
-                Text("· Texterkennung: \(model.pendingJobs) ausstehend")
-                    .foregroundStyle(.secondary)
+                Text("Texterkennung: \(model.pendingJobs) ausstehend")
+                    .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             if model.lastSavedURL != nil {
-                Button("Im Finder zeigen") { model.revealLastSaved() }
-                    .buttonStyle(.link)
+                Button {
+                    model.revealLastSaved()
+                } label: {
+                    IconLabel("Im Finder zeigen", systemImage: "folder.fill", size: Theme.smallIconSize)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.accent)
             }
         }
         .font(.callout)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.bar)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Theme.raised)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
     }
 
     @ViewBuilder private var scannerState: some View {
         switch scanner.phase {
         case .idle:
-            Label(scanner.selectedScanner == nil ? "Suche Scanner…" : "Nicht verbunden", systemImage: "circle")
-                .foregroundStyle(.secondary)
+            StatusPill(text: scanner.selectedScanner == nil ? "Suche Scanner…" : "Nicht verbunden",
+                       color: Theme.textSecondary)
         case .connecting:
-            Label("Verbinde…", systemImage: "circle.dotted")
-                .foregroundStyle(.secondary)
+            StatusPill(text: "Verbinde…", color: Theme.warning)
         case .ready:
-            Label(scanner.supportsDuplex ? "Bereit (Duplex möglich)" : "Bereit", systemImage: "circle.fill")
-                .foregroundStyle(.green)
+            StatusPill(text: scanner.supportsDuplex ? "Bereit · Duplex" : "Bereit", color: Theme.success)
         case .scanning:
-            Label("Scanne", systemImage: "circle.fill")
-                .foregroundStyle(.orange)
+            StatusPill(text: "Scanne", color: Theme.accent)
         case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .lineLimit(1)
+            StatusPill(text: message, color: Theme.danger, systemImage: "exclamationmark.triangle.fill")
         }
     }
 }

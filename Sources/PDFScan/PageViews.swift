@@ -10,27 +10,53 @@ struct PageListView: View {
         let documentNumbers = model.documentNumbers
         let documentCount = Set(documentNumbers.values).count
         VStack(spacing: 0) {
-            HStack {
-                Text("\(documentCount) \(documentCount == 1 ? "Dokument" : "Dokumente") · \(model.includedPageCount) von \(model.pages.count) Seiten")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-                Spacer()
-                Button("Verwerfen") { model.newDocument() }
-                    .disabled(model.pages.isEmpty)
-                Button {
-                    model.autoSplit()
-                } label: {
-                    Image(systemName: "wand.and.stars")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(documentCount == 1 ? "1 Dokument" : "\(documentCount) Dokumente")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("\(model.includedPageCount) von \(model.pages.count) Seiten")
+                        .font(.callout)
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                .help("Automatisch in Dokumente trennen (⇧⌘T) – überschreibt manuelle Trennstellen")
-                .disabled(model.pages.isEmpty)
-                Button(documentCount > 1 ? "\(documentCount) PDFs speichern" : "PDF speichern") { model.save() }
+                HStack(spacing: 8) {
+                    Button {
+                        model.newDocument()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: Theme.iconSize, weight: .medium))
+                            .frame(width: 22, height: 22)
+                    }
+                    .help("Alle Seiten verwerfen")
+                    .disabled(model.pages.isEmpty)
+                    Button {
+                        model.autoSplit()
+                    } label: {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: Theme.iconSize, weight: .medium))
+                            .frame(width: 22, height: 22)
+                    }
+                    .help("Automatisch in Dokumente trennen (⇧⌘T) – überschreibt manuelle Trennstellen")
+                    .disabled(model.pages.isEmpty)
+                    Spacer()
+                    Button {
+                        model.save()
+                    } label: {
+                        IconLabel(documentCount > 1 ? "\(documentCount) PDFs speichern" : "PDF speichern",
+                                  systemImage: "square.and.arrow.down.on.square.fill", size: Theme.smallIconSize)
+                            .padding(.vertical, 2)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.pages.isEmpty || model.isSaving)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
             }
-            .padding(12)
+            .padding(14)
 
-            Divider()
+            Rectangle().fill(Theme.border).frame(height: 1)
 
             List(selection: $model.selection) {
                 ForEach(Array(model.pages.enumerated()), id: \.element.id) { index, page in
@@ -44,33 +70,58 @@ struct PageListView: View {
                 .onMove { model.move(from: $0, to: $1) }
                 .onDelete { offsets in model.delete(Set(offsets.map { model.pages[$0].id })) }
             }
+            .scrollContentBackground(.hidden)
             .onDeleteCommand {
                 if let id = model.selection { model.delete([id]) }
             }
             .overlay {
-                if model.pages.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "doc.viewfinder")
-                            .font(.system(size: 36))
-                        Text("Blätter in den Einzug legen und „Scannen“ drücken – oder Bilder/PDFs hierher ziehen.")
-                            .multilineTextAlignment(.center)
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding()
+                if model.pages.isEmpty { EmptyState() }
+            }
+
+            Rectangle().fill(Theme.border).frame(height: 1)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $duplex) {
+                    IconLabel("Beidseitig scannen", systemImage: "doc.on.doc", size: Theme.smallIconSize)
                 }
+                Toggle(isOn: $autoSave) {
+                    IconLabel("Nach jedem Scan speichern", systemImage: "bolt.fill", size: Theme.smallIconSize)
+                }
+                .help("Stapelmodus: jeder Einzug wird ohne Rückfrage gespeichert")
             }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Toggle("Beidseitig scannen (Duplex)", isOn: $duplex)
-                Toggle("Nach jedem Scan automatisch als PDF speichern", isOn: $autoSave)
-                    .help("Stapelmodus: jeder Einzug wird ein eigenes PDF")
-            }
-            .toggleStyle(.checkbox)
+            .toggleStyle(.switch)
+            .controlSize(.small)
             .font(.callout)
-            .padding(12)
+            .foregroundStyle(Theme.textPrimary)
+            .padding(14)
         }
+        .background(Theme.sidebar)
+    }
+}
+
+private struct EmptyState: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "doc.viewfinder")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(Theme.accent)
+            Text("Noch keine Seiten")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+            Text("Blätter in den Einzug legen und „Scannen“ drücken – oder Bilder und PDFs hierher ziehen.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.textSecondary)
+            Button {
+                model.showImportPanel()
+            } label: {
+                IconLabel("Dateien importieren", systemImage: "square.and.arrow.down.fill", size: Theme.smallIconSize)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+        .padding(24)
     }
 }
 
@@ -83,17 +134,19 @@ private struct PageRow: View {
     let reason: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             if startsNewDocument {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: "scissors")
+                        .font(.system(size: Theme.smallIconSize, weight: .semibold))
                     if let reason {
                         Text(reason).lineLimit(1)
                     }
-                    Rectangle().frame(height: 1)
+                    Rectangle().frame(height: 1).opacity(0.6)
                 }
-                .foregroundStyle(Color.accentColor)
-                .font(.caption)
+                .foregroundStyle(Theme.accent)
+                .font(.caption.weight(.medium))
+                .padding(.top, 4)
                 .help("Hier beginnt ein neues Dokument")
             }
             row
@@ -101,25 +154,32 @@ private struct PageRow: View {
     }
 
     private var row: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Group {
                 if let thumbnail = page.thumbnail {
                     Image(nsImage: thumbnail)
                         .resizable()
                         .scaledToFit()
                 } else {
-                    Rectangle().fill(.quaternary)
+                    RoundedRectangle(cornerRadius: 4).fill(Theme.raised)
+                        .overlay(ProgressView().controlSize(.small))
                 }
             }
-            .frame(width: 56, height: 72)
-            .border(.separator)
+            .frame(width: Theme.thumbnail.width, height: Theme.thumbnail.height)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(document.map { "Dokument \($0) · Seite \(number)" } ?? "Seite \(number)")
-                    .fontWeight(.medium)
+            VStack(alignment: .leading, spacing: 4) {
+                if let document {
+                    Text("Dokument \(document)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                Text("Seite \(number)")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
                 detail
                     .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             Spacer()
             Toggle("", isOn: Binding(get: { !page.excluded },
@@ -128,21 +188,25 @@ private struct PageRow: View {
                 .labelsHidden()
                 .help("Seite ins PDF übernehmen")
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
         .opacity(page.excluded ? 0.45 : 1)
     }
 
     @ViewBuilder private var detail: some View {
         switch page.state {
         case .processing:
-            Text("Texterkennung läuft…")
+            Label("Texterkennung läuft…", systemImage: "hourglass")
+                .foregroundStyle(Theme.warning)
         case .failed(let message):
-            Text(message).foregroundStyle(.red)
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.danger)
         case .done:
             if page.isBlank {
-                Text("Leerseite")
+                Label("Leerseite", systemImage: "doc")
+                    .foregroundStyle(Theme.textSecondary)
             } else {
-                Text("\(page.wordCount) Wörter erkannt")
+                Label("\(page.wordCount) Wörter", systemImage: "text.alignleft")
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
     }
@@ -178,13 +242,14 @@ struct PageDetailView: View {
         if let page = model.selectedPage {
             VSplitView {
                 ZStack {
-                    Color(nsColor: .underPageBackgroundColor)
+                    Theme.window
                     if let image = preview ?? page.thumbnail {
                         Image(nsImage: image)
                             .resizable()
                             .scaledToFit()
-                            .shadow(radius: 3)
-                            .padding(16)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .shadow(color: .black.opacity(0.5), radius: 12, y: 4)
+                            .padding(24)
                     }
                 }
                 .frame(minHeight: 250)
@@ -197,38 +262,54 @@ struct PageDetailView: View {
                     preview = image.map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
                 }
 
-                ScrollView {
-                    Text(page.text.isEmpty ? "Kein Text erkannt." : page.text)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .foregroundStyle(page.text.isEmpty ? HierarchicalShapeStyle.secondary : .primary)
+                VStack(alignment: .leading, spacing: 0) {
+                    IconLabel("Erkannter Text", systemImage: "text.viewfinder", size: Theme.smallIconSize)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 6)
+                    ScrollView {
+                        Text(page.text.isEmpty ? "Kein Text erkannt." : page.text)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+                            .foregroundStyle(page.text.isEmpty ? Theme.textSecondary : Theme.textPrimary)
+                    }
                 }
-                .frame(minHeight: 80, idealHeight: 180)
+                .frame(minHeight: 100, idealHeight: 200)
+                .background(Theme.surface)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .secondaryAction) {
                     Button { model.setStartsDocument(page.id, !page.startsDocument) } label: {
-                        Label(page.startsDocument ? "Trennung entfernen" : "Neues Dokument ab hier",
-                              systemImage: "scissors")
+                        IconLabel(page.startsDocument ? "Trennung entfernen" : "Neues Dokument ab hier",
+                                  systemImage: "scissors")
                     }
                     .keyboardShortcut("t")
                     .help("Mit dieser Seite beginnt ein neues Dokument (⌘T)")
                     Button { model.rotate(page.id, clockwise: 270) } label: {
-                        Label("Nach links drehen", systemImage: "rotate.left")
+                        IconLabel("Nach links drehen", systemImage: "rotate.left.fill")
                     }
                     Button { model.rotate(page.id, clockwise: 90) } label: {
-                        Label("Nach rechts drehen", systemImage: "rotate.right")
+                        IconLabel("Nach rechts drehen", systemImage: "rotate.right.fill")
                     }
                     Button { model.delete([page.id]) } label: {
-                        Label("Seite löschen", systemImage: "trash")
+                        IconLabel("Seite löschen", systemImage: "trash.fill")
                     }
                 }
             }
         } else {
-            Text("Keine Seite ausgewählt")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 12) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                Text("Keine Seite ausgewählt")
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.window)
         }
     }
 }

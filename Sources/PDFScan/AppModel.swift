@@ -66,6 +66,12 @@ final class AppModel: ObservableObject {
         scanner = ScannerService(downloadDirectory: incoming)
         scanner.onPageScanned = { [weak self] url, dpi in self?.addScannedFile(url, dpi: dpi) }
         scanner.onScanFinished = { [weak self] error in self?.scanFinished(error) }
+
+        // Für automatische Tests und Screenshots: Dateien beim Start importieren (durch „:“ getrennt).
+        if let paths = ProcessInfo.processInfo.environment["PDFSCAN_IMPORT"], !paths.isEmpty {
+            let urls = paths.split(separator: ":").map { URL(fileURLWithPath: String($0)) }
+            DispatchQueue.main.async { [weak self] in self?.importFiles(urls) }
+        }
     }
 
     var selectedPage: ScanPage? {

@@ -78,6 +78,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Theme.window)
+        .tint(Theme.accent)
+        .preferredColorScheme(.dark)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
     }

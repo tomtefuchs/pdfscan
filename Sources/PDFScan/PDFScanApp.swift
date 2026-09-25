@@ -4,6 +4,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Nötig, wenn die App per `swift run` ohne .app-Bundle gestartet wird.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
     }
