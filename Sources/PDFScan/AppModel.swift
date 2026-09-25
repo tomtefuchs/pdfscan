@@ -19,6 +19,8 @@ struct ScanPage: Identifiable {
     var isBlank = false
     /// Nicht ins PDF übernehmen (automatisch bei Leerseiten, oder vom Nutzer abgewählt).
     var excluded = false
+    /// Mit dieser Seite beginnt ein neues Dokument (Trennstelle).
+    var startsDocument = false
 
     var text: String { lines.map(\.text).joined(separator: "\n") }
     var wordCount: Int { lines.reduce(0) { $0 + $1.text.split(separator: " ").count } }
@@ -28,7 +30,6 @@ struct ScanPage: Identifiable {
 final class AppModel: ObservableObject {
     @Published var pages: [ScanPage] = []
     @Published var selection: ScanPage.ID?
-    @Published var documentName = ""
     @Published var status = "Bereit"
     @Published var errorMessage: String?
     @Published private(set) var pendingJobs = 0
@@ -170,6 +171,25 @@ final class AppModel: ObservableObject {
         pages[index].excluded = excluded
     }
 
+    func setStartsDocument(_ id: ScanPage.ID, _ starts: Bool) {
+        guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
+        pages[index].startsDocument = starts
+    }
+
+    /// Aufteilung der übernommenen Seiten in Dokumente (Seitenindizes je Dokument).
+    var documentGroups: [[Int]] {
+        DocumentSplitter.group(startsDocument: pages.map(\.startsDocument), excluded: pages.map(\.excluded))
+    }
+
+    /// Dokumentnummer (ab 1) je übernommener Seite, für die Anzeige.
+    var documentNumbers: [ScanPage.ID: Int] {
+        var numbers: [ScanPage.ID: Int] = [:]
+        for (number, group) in documentGroups.enumerated() {
+            for index in group { numbers[pages[index].id] = number + 1 }
+        }
+        return numbers
+    }
+
     func delete(_ ids: Set<ScanPage.ID>) {
         for page in pages where ids.contains(page.id) {
             try? FileManager.default.removeItem(at: page.url)
@@ -192,7 +212,6 @@ final class AppModel: ObservableObject {
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         delete(Set(pages.map(\.id)))
-        documentName = ""
         status = "Neues Dokument"
     }
 
@@ -240,43 +259,66 @@ final class AppModel: ObservableObject {
     private func writePDF() {
         let settings = AppSettings.current
         let snapshot = pages.filter { $0.state != .processing }
-        let included = snapshot.filter { !$0.excluded }
-        guard !included.isEmpty else {
+        let groups = DocumentSplitter.group(startsDocument: snapshot.map(\.startsDocument),
+                                            excluded: snapshot.map(\.excluded))
+        guard !groups.isEmpty else {
             isSaving = false
             status = "Keine Seiten zum Speichern (alle abgewählt oder leer)"
             return
         }
 
-        let trimmed = documentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let now = Date()
-        let title = trimmed.isEmpty ? "Scan \(Self.timeFormatter.string(from: now))" : trimmed
-        let fileName = (settings.datePrefix && !trimmed.isEmpty ? "\(Self.dateFormatter.string(from: now)) " : "")
-            + Self.sanitized(title)
+        let documents = groups.map { group in
+            group.map { PDFPageSource(imageURL: snapshot[$0].url, dpi: snapshot[$0].dpi, lines: snapshot[$0].lines) }
+        }
+        let naming = DocumentNaming(prefix: settings.filePrefix)
         let folder = settings.outputFolder
-        let sources = included.map { PDFPageSource(imageURL: $0.url, dpi: $0.dpi, lines: $0.lines) }
         let savedIDs = Set(snapshot.map(\.id))
-        let temporary = workDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("pdf")
+        let workDirectory = self.workDirectory
+        let now = Date()
 
-        status = "Erzeuge PDF mit \(included.count) Seiten…"
+        status = documents.count == 1
+            ? "Erzeuge PDF mit \(documents[0].count) Seiten…"
+            : "Erzeuge \(documents.count) PDFs…"
         queue.async { [weak self] in
-            let outcome: Result<URL, Error> = Result {
+            var temporaries: [URL] = []
+            let outcome: Result<[URL], Error> = Result {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                try SearchablePDFWriter.write(sources, to: temporary, title: title, jpegQuality: settings.jpegQuality)
-                let target = Self.uniqueURL(in: folder, baseName: fileName)
-                try FileManager.default.moveItem(at: temporary, to: target)
-                return target
+                for pages in documents {
+                    let temporary = workDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("pdf")
+                    temporaries.append(temporary)
+                    let title = "Scan \(Self.titleFormatter.string(from: now))"
+                    try SearchablePDFWriter.write(pages, to: temporary, title: title, jpegQuality: settings.jpegQuality)
+                }
+                // Erst wenn alle PDFs fertig sind, mit einer freien Batch-Nummer in den Zielordner verschieben.
+                var batch = naming.nextBatch(in: folder, date: now)
+                var targets: [URL] = []
+                repeat {
+                    targets = documents.indices.map {
+                        folder.appendingPathComponent(naming.fileName(date: now, batch: batch, document: $0 + 1))
+                    }
+                    if targets.contains(where: { FileManager.default.fileExists(atPath: $0.path) }) {
+                        batch += 1
+                        targets = []
+                    }
+                } while targets.isEmpty
+                for (temporary, target) in zip(temporaries, targets) {
+                    try FileManager.default.moveItem(at: temporary, to: target)
+                }
+                return targets
             }
+            let written = temporaries
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isSaving = false
                 switch outcome {
-                case .success(let url):
+                case .success(let urls):
                     self.delete(savedIDs)
-                    self.documentName = ""
-                    self.lastSavedURL = url
-                    self.status = "Gespeichert: \(url.lastPathComponent)"
+                    self.lastSavedURL = urls.first
+                    self.status = urls.count == 1
+                        ? "Gespeichert: \(urls[0].lastPathComponent)"
+                        : "\(urls.count) Dokumente gespeichert: \(urls[0].lastPathComponent) … \(urls[urls.count - 1].lastPathComponent)"
                 case .failure(let error):
-                    try? FileManager.default.removeItem(at: temporary)
+                    written.forEach { try? FileManager.default.removeItem(at: $0) }
                     self.errorMessage = error.localizedDescription
                     self.status = "Speichern fehlgeschlagen"
                 }
@@ -289,76 +331,9 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    private static let dateFormatter: DateFormatter = {
+    private static let titleFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
+        f.dateFormat = "yyyy-MM-dd HH:mm"
         return f
     }()
-
-    private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH-mm-ss"
-        return f
-    }()
-
-    private static func sanitized(_ name: String) -> String {
-        let cleaned = name.components(separatedBy: CharacterSet(charactersIn: "/:\\")).joined(separator: "-")
-        return cleaned.isEmpty ? "Scan" : cleaned
-    }
-
-    private static func uniqueURL(in folder: URL, baseName: String) -> URL {
-        var candidate = folder.appendingPathComponent(baseName).appendingPathExtension("pdf")
-        var counter = 2
-        while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = folder.appendingPathComponent("\(baseName) (\(counter))").appendingPathExtension("pdf")
-            counter += 1
-        }
-        return candidate
-    }
-}
-
-/// Die eigentliche Seitenverarbeitung (läuft im Hintergrund).
-enum PageProcessor {
-    struct Result {
-        var url: URL
-        var lines: [RecognizedLine] = []
-        var isBlank = false
-        var thumbnail: NSImage?
-        var error: String?
-    }
-
-    static func run(url: URL, dpi: Double, rotation: Int, detectOrientation: Bool, languages: [String]) -> Result {
-        autoreleasepool { () -> Result in
-            guard var image = ImageOps.loadImage(at: url) else {
-                return Result(url: url, error: "Bild nicht lesbar")
-            }
-            var result = Result(url: url)
-
-            var degrees = rotation
-            if detectOrientation {
-                degrees += TextRecognizer.uprightRotation(for: image)
-            }
-            if degrees % 360 != 0, let rotated = ImageOps.rotated(image, clockwiseDegrees: degrees) {
-                let target = url.deletingLastPathComponent()
-                    .appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
-                if (try? ImageOps.writePNG(rotated, to: target, dpi: dpi)) != nil {
-                    try? FileManager.default.removeItem(at: url)
-                    image = rotated
-                    result.url = target
-                }
-            }
-
-            do {
-                result.lines = try TextRecognizer.recognize(image, languages: languages)
-            } catch {
-                result.error = "Texterkennung fehlgeschlagen: \(error.localizedDescription)"
-            }
-            let characters = result.lines.reduce(0) { $0 + $1.text.count }
-            result.isBlank = BlankPageDetector.isBlank(image, recognizedCharacters: characters)
-
-            let thumb = ImageOps.scaled(image, maxDimension: 400)
-            result.thumbnail = NSImage(cgImage: thumb, size: NSSize(width: thumb.width, height: thumb.height))
-            return result
-        }
-    }
 }

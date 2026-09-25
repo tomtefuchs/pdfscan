@@ -7,22 +7,19 @@ struct PageListView: View {
     @AppStorage(SettingsKey.autoSaveAfterScan) private var autoSave = false
 
     var body: some View {
+        let documentNumbers = model.documentNumbers
+        let documentCount = Set(documentNumbers.values).count
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Dokumentname (optional)", text: $model.documentName)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { model.save() }
-                HStack {
-                    Text("\(model.includedPageCount) von \(model.pages.count) Seiten")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                    Spacer()
-                    Button("Neu") { model.newDocument() }
-                        .disabled(model.pages.isEmpty)
-                    Button("PDF speichern") { model.save() }
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(model.pages.isEmpty || model.isSaving)
-                }
+            HStack {
+                Text("\(documentCount) \(documentCount == 1 ? "Dokument" : "Dokumente") · \(model.includedPageCount) von \(model.pages.count) Seiten")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                Spacer()
+                Button("Verwerfen") { model.newDocument() }
+                    .disabled(model.pages.isEmpty)
+                Button(documentCount > 1 ? "\(documentCount) PDFs speichern" : "PDF speichern") { model.save() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(model.pages.isEmpty || model.isSaving)
             }
             .padding(12)
 
@@ -30,9 +27,12 @@ struct PageListView: View {
 
             List(selection: $model.selection) {
                 ForEach(Array(model.pages.enumerated()), id: \.element.id) { index, page in
-                    PageRow(page: page, number: index + 1)
+                    PageRow(page: page, number: index + 1, document: documentNumbers[page.id],
+                            startsNewDocument: index > 0 && page.startsDocument)
                         .tag(page.id)
-                        .contextMenu { PageActions(pageID: page.id, excluded: page.excluded) }
+                        .contextMenu {
+                            PageActions(pageID: page.id, excluded: page.excluded, startsDocument: page.startsDocument)
+                        }
                 }
                 .onMove { model.move(from: $0, to: $1) }
                 .onDelete { offsets in model.delete(Set(offsets.map { model.pages[$0].id })) }
@@ -71,8 +71,25 @@ private struct PageRow: View {
     @EnvironmentObject private var model: AppModel
     let page: ScanPage
     let number: Int
+    let document: Int?
+    let startsNewDocument: Bool
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if startsNewDocument {
+                HStack(spacing: 4) {
+                    Image(systemName: "scissors")
+                    Rectangle().frame(height: 1)
+                }
+                .foregroundStyle(Color.accentColor)
+                .font(.caption)
+                .help("Hier beginnt ein neues Dokument")
+            }
+            row
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 10) {
             Group {
                 if let thumbnail = page.thumbnail {
@@ -87,7 +104,7 @@ private struct PageRow: View {
             .border(.separator)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Seite \(number)")
+                Text(document.map { "Dokument \($0) · Seite \(number)" } ?? "Seite \(number)")
                     .fontWeight(.medium)
                 detail
                     .font(.caption)
@@ -124,8 +141,13 @@ private struct PageActions: View {
     @EnvironmentObject private var model: AppModel
     let pageID: ScanPage.ID
     let excluded: Bool
+    let startsDocument: Bool
 
     var body: some View {
+        Button(startsDocument ? "Trennung entfernen" : "Neues Dokument ab dieser Seite") {
+            model.setStartsDocument(pageID, !startsDocument)
+        }
+        Divider()
         Button("Nach links drehen") { model.rotate(pageID, clockwise: 270) }
         Button("Nach rechts drehen") { model.rotate(pageID, clockwise: 90) }
         Button("Um 180° drehen") { model.rotate(pageID, clockwise: 180) }
@@ -175,6 +197,12 @@ struct PageDetailView: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .secondaryAction) {
+                    Button { model.setStartsDocument(page.id, !page.startsDocument) } label: {
+                        Label(page.startsDocument ? "Trennung entfernen" : "Neues Dokument ab hier",
+                              systemImage: "scissors")
+                    }
+                    .keyboardShortcut("t")
+                    .help("Mit dieser Seite beginnt ein neues Dokument (⌘T)")
                     Button { model.rotate(page.id, clockwise: 270) } label: {
                         Label("Nach links drehen", systemImage: "rotate.left")
                     }

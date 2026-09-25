@@ -1,4 +1,5 @@
 import AppKit
+import PDFScanCore
 import SwiftUI
 
 struct SettingsView: View {
@@ -10,7 +11,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.jpegQuality) private var jpegQuality = 0.7
     @AppStorage(SettingsKey.languages) private var languages = "de-DE,en-US"
     @AppStorage(SettingsKey.outputFolder) private var outputFolder = AppSettings.defaultOutputFolder
-    @AppStorage(SettingsKey.datePrefix) private var datePrefix = true
+    @AppStorage(SettingsKey.filePrefix) private var filePrefix = "Scan_"
     @AppStorage(SettingsKey.autoSaveAfterScan) private var autoSave = false
 
     var body: some View {
@@ -56,7 +57,13 @@ struct SettingsView: View {
                         Button("Auswählen…", action: chooseFolder)
                     }
                 }
-                Toggle("Datum vor den Dateinamen setzen", isOn: $datePrefix)
+                TextField("Präfix", text: $filePrefix)
+                LabeledContent("Beispiel") {
+                    Text(DocumentNaming(prefix: DocumentNaming.sanitizedPrefix(filePrefix))
+                        .fileName(date: Date(), batch: 1, document: 1))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
                 Toggle("Nach jedem Scan automatisch speichern (Stapelmodus)", isOn: $autoSave)
             }
         }

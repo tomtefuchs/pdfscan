@@ -14,10 +14,27 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
 - **Automatisch aufrecht drehen**: Falsch herum eingelegte Seiten werden anhand des Textes erkannt und gedreht.
 - **Leerseiten weglassen**: Unbedruckte Rückseiten beim Duplex-Scan werden erkannt und abgewählt. Man kann sie per
   Häkchen wieder aufnehmen.
+- **In einzelne Dokumente trennen**: Ein Stapel wird an Trennstellen in mehrere PDFs aufgeteilt. Eine
+  Trennstelle setzt man per ⌘T, über das Scheren-Symbol oder das Kontextmenü („Neues Dokument ab dieser Seite“).
+- **Einheitliche Dateinamen**: `<Präfix><Jahr>_<Monat>_<Tag>_<Batch>_<Dokument>.pdf`, z. B.
+  `Scan_2026_09_25_003_01.pdf`. Details siehe unten.
 - Seiten **sortieren** (Drag & Drop), **drehen**, **löschen**, erkannten Text in der Vorschau prüfen.
 - **Import** von Bildern (JPEG/PNG/TIFF/HEIC, auch mehrseitige TIFFs) und **bestehenden PDFs**, etwa alten Scans
   ohne Texterkennung oder Dateien aus Epson ScanSmart/FastFoto. Man kann sie auch einfach ins Fenster ziehen.
 - Kompakte PDFs: Die Seiten werden als JPEG eingebettet (Qualität einstellbar), Seitengröße aus der Scan-Auflösung.
+
+## Dateinamen
+
+| Teil | Bedeutung |
+|---|---|
+| Präfix | frei einstellbar, Standard `Scan_` |
+| `2026_09_25` | Datum des Speicherns |
+| `003` | Batch: ein Speichervorgang, also ein Stapel. Beginnt jeden Tag bei 001 und wird aus den vorhandenen Dateien im Zielordner fortgesetzt, auch nach einem Neustart der App. |
+| `01` | Dokument innerhalb des Batches, in der Reihenfolge der Trennstellen |
+
+Beispiel: Ein Stapel mit drei Briefen ergibt `Scan_2026_09_25_003_01.pdf`, `…_003_02.pdf` und `…_003_03.pdf`.
+Im Stapelmodus ist jeder Einzug ein eigener Batch. Eine Trennmarke auf einer weggelassenen Leerseite gilt
+für die nächste übernommene Seite.
 
 ## Voraussetzungen
 
@@ -50,10 +67,10 @@ per Rechtsklick → „Öffnen“ starten oder vorher `xattr -dr com.apple.quara
 
 1. Scanner einschalten. PDFScan wählt den FF-680W automatisch aus (Statusleiste: „Bereit“).
 2. Blätter einlegen, **Scannen** drücken (⌘R).
-3. Seiten prüfen, bei Bedarf Namen eintragen (z. B. „Mietvertrag Berliner Str“).
-4. **PDF speichern** (⌘S). Die Datei landet in `~/Dokumente/Scans/2026-09-25 Mietvertrag Berliner Str.pdf`.
+3. Seiten prüfen und an jeder Stelle, an der ein neues Dokument beginnt, ⌘T drücken.
+4. **Speichern** (⌘S). Die PDFs landen in `~/Dokumente/Scans/`, z. B. `Scan_2026_09_25_001_01.pdf`.
 
-Der Zielordner, die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
+Der Zielordner, das Präfix, die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
 **PDFScan → Einstellungen** (⌘,) ändern.
 
 ## Tipps für alte Dokumente
@@ -75,6 +92,7 @@ Der Zielordner, die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qual
 | `Sources/PDFScanCore/TextRecognizer.swift` | OCR und Erkennung der Ausrichtung (Vision) |
 | `Sources/PDFScanCore/BlankPageDetector.swift` | Erkennung von Leerseiten, robust gegen vergilbtes Papier |
 | `Sources/PDFScanCore/SearchablePDFWriter.swift` | PDF mit Scan-Bild und unsichtbarer Textebene |
+| `Sources/PDFScanCore/DocumentNaming.swift` | Dateinamen-Schema, Batch-Zähler, Aufteilung in Dokumente |
 | `Sources/PDFScanCore/ImageOps.swift` | Bilder laden, drehen, skalieren, PDFs rastern |
 
 **Warum keine PWA?** Browser können keine USB- oder WLAN-Scanner direkt ansteuern. Man müsste immer erst mit

@@ -1,4 +1,5 @@
 import Foundation
+import PDFScanCore
 
 enum SettingsKey {
     static let resolution = "resolution"
@@ -9,7 +10,7 @@ enum SettingsKey {
     static let jpegQuality = "jpegQuality"
     static let languages = "languages"
     static let outputFolder = "outputFolder"
-    static let datePrefix = "datePrefix"
+    static let filePrefix = "filePrefix"
     static let autoSaveAfterScan = "autoSaveAfterScan"
 }
 
@@ -23,7 +24,7 @@ struct AppSettings {
     var jpegQuality: Double
     var languages: [String]
     var outputFolder: URL
-    var datePrefix: Bool
+    var filePrefix: String
     var autoSaveAfterScan: Bool
 
     static let languagePresets: [(label: String, value: String)] = [
@@ -50,7 +51,7 @@ struct AppSettings {
             SettingsKey.jpegQuality: 0.7,
             SettingsKey.languages: "de-DE,en-US",
             SettingsKey.outputFolder: defaultOutputFolder,
-            SettingsKey.datePrefix: true,
+            SettingsKey.filePrefix: "Scan_",
             SettingsKey.autoSaveAfterScan: false,
         ])
     }
@@ -68,7 +69,7 @@ struct AppSettings {
                 .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
             outputFolder: URL(fileURLWithPath: d.string(forKey: SettingsKey.outputFolder) ?? defaultOutputFolder,
                               isDirectory: true),
-            datePrefix: d.bool(forKey: SettingsKey.datePrefix),
+            filePrefix: DocumentNaming.sanitizedPrefix(d.string(forKey: SettingsKey.filePrefix) ?? "Scan_"),
             autoSaveAfterScan: d.bool(forKey: SettingsKey.autoSaveAfterScan)
         )
     }
