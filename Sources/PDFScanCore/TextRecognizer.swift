@@ -58,13 +58,22 @@ public enum TextRecognizer {
         return best.key
     }
 
-    /// Buchstaben in "echten" Wörtern (≥ 3 Buchstaben), gewichtet mit der Konfidenz.
-    /// Falsch herum gelesener Text liefert meist nur kurze Fragmente und Sonderzeichen.
+    /// Buchstaben in plausibel geformten Wörtern (≥ 3 Buchstaben), gewichtet mit der Konfidenz.
+    /// Kopfstehender Text wird von der schnellen Erkennung zu Gebilden wie „uayJ!IpunaJi“ oder „ua6pi“ –
+    /// Großbuchstaben mitten im Wort, Ziffern oder Sonderzeichen im Wort zählen deshalb nicht.
     static func plausibility(of line: RecognizedLine) -> Double {
         let letters = line.text
-            .split(whereSeparator: { !$0.isLetter })
-            .filter { $0.count >= 3 }
+            .split(separator: " ")
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?\"'()-")) }
+            .filter(isWellFormedWord)
             .reduce(0) { $0 + $1.count }
         return Double(letters) * Double(line.confidence)
+    }
+
+    /// „wort“, „Wort“ oder „WORT“ – nur Buchstaben, mindestens drei.
+    static func isWellFormedWord(_ word: String) -> Bool {
+        guard word.count >= 3, word.allSatisfy(\.isLetter) else { return false }
+        let tail = word.dropFirst()
+        return tail.allSatisfy(\.isLowercase) || word.allSatisfy(\.isUppercase)
     }
 }

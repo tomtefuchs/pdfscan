@@ -34,8 +34,6 @@ final class PipelineTests: XCTestCase {
         return ctx.makeImage()!
     }
 
-    func makePageForDiagnostics() -> CGImage { makePage(lines: letter) }
-
     private func temporaryURL(_ ext: String) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
     }
@@ -69,6 +67,13 @@ final class PipelineTests: XCTestCase {
 
         let upsideDown = try XCTUnwrap(ImageOps.rotated(upright, clockwiseDegrees: 180))
         XCTAssertEqual(TextRecognizer.uprightRotation(for: upsideDown), 180)
+    }
+
+    func testRejectsUpsideDownGibberish() {
+        // Tatsächliche Ausgabe der schnellen Erkennung für kopfstehenden Text.
+        let gibberish = RecognizedLine(text: "'oiuox auaqa6a6up SEP Inp ua6pi uuazJa!A uoA", box: .zero, confidence: 0.5)
+        let real = RecognizedLine(text: "von vierzehn Tagen auf das angegebene Konto.", box: .zero, confidence: 0.5)
+        XCTAssertLessThan(TextRecognizer.plausibility(of: gibberish) * 2, TextRecognizer.plausibility(of: real))
     }
 
     func testBlankPageDetection() throws {
