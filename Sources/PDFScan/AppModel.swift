@@ -337,3 +337,49 @@ final class AppModel: ObservableObject {
         return f
     }()
 }
+
+/// Die eigentliche Seitenverarbeitung (läuft im Hintergrund).
+enum PageProcessor {
+    struct Result {
+        var url: URL
+        var lines: [RecognizedLine] = []
+        var isBlank = false
+        var thumbnail: NSImage?
+        var error: String?
+    }
+
+    static func run(url: URL, dpi: Double, rotation: Int, detectOrientation: Bool, languages: [String]) -> Result {
+        autoreleasepool { () -> Result in
+            guard var image = ImageOps.loadImage(at: url) else {
+                return Result(url: url, error: "Bild nicht lesbar")
+            }
+            var result = Result(url: url)
+
+            var degrees = rotation
+            if detectOrientation {
+                degrees += TextRecognizer.uprightRotation(for: image)
+            }
+            if degrees % 360 != 0, let rotated = ImageOps.rotated(image, clockwiseDegrees: degrees) {
+                let target = url.deletingLastPathComponent()
+                    .appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
+                if (try? ImageOps.writePNG(rotated, to: target, dpi: dpi)) != nil {
+                    try? FileManager.default.removeItem(at: url)
+                    image = rotated
+                    result.url = target
+                }
+            }
+
+            do {
+                result.lines = try TextRecognizer.recognize(image, languages: languages)
+            } catch {
+                result.error = "Texterkennung fehlgeschlagen: \(error.localizedDescription)"
+            }
+            let characters = result.lines.reduce(0) { $0 + $1.text.count }
+            result.isBlank = BlankPageDetector.isBlank(image, recognizedCharacters: characters)
+
+            let thumb = ImageOps.scaled(image, maxDimension: 400)
+            result.thumbnail = NSImage(cgImage: thumb, size: NSSize(width: thumb.width, height: thumb.height))
+            return result
+        }
+    }
+}
