@@ -17,6 +17,13 @@ struct PageListView: View {
                 Spacer()
                 Button("Verwerfen") { model.newDocument() }
                     .disabled(model.pages.isEmpty)
+                Button {
+                    model.autoSplit()
+                } label: {
+                    Image(systemName: "wand.and.stars")
+                }
+                .help("Automatisch in Dokumente trennen (⇧⌘T) – überschreibt manuelle Trennstellen")
+                .disabled(model.pages.isEmpty)
                 Button(documentCount > 1 ? "\(documentCount) PDFs speichern" : "PDF speichern") { model.save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.pages.isEmpty || model.isSaving)
@@ -28,7 +35,7 @@ struct PageListView: View {
             List(selection: $model.selection) {
                 ForEach(Array(model.pages.enumerated()), id: \.element.id) { index, page in
                     PageRow(page: page, number: index + 1, document: documentNumbers[page.id],
-                            startsNewDocument: index > 0 && page.startsDocument)
+                            startsNewDocument: index > 0 && page.startsDocument, reason: page.splitReason)
                         .tag(page.id)
                         .contextMenu {
                             PageActions(pageID: page.id, excluded: page.excluded, startsDocument: page.startsDocument)
@@ -73,12 +80,16 @@ private struct PageRow: View {
     let number: Int
     let document: Int?
     let startsNewDocument: Bool
+    let reason: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if startsNewDocument {
                 HStack(spacing: 4) {
                     Image(systemName: "scissors")
+                    if let reason {
+                        Text(reason).lineLimit(1)
+                    }
                     Rectangle().frame(height: 1)
                 }
                 .foregroundStyle(Color.accentColor)

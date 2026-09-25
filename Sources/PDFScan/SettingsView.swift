@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.outputFolder) private var outputFolder = AppSettings.defaultOutputFolder
     @AppStorage(SettingsKey.filePrefix) private var filePrefix = "Scan_"
     @AppStorage(SettingsKey.autoSaveAfterScan) private var autoSave = false
+    @AppStorage(SettingsKey.autoSplit) private var autoSplit = true
 
     var body: some View {
         Form {
@@ -38,6 +39,8 @@ struct SettingsView: View {
                 }
                 Toggle("Seiten automatisch aufrecht drehen", isOn: $autoRotate)
                 Toggle("Leerseiten automatisch weglassen", isOn: $skipBlankPages)
+                Toggle("Automatisch in einzelne Dokumente trennen", isOn: $autoSplit)
+                    .help("Zähler (1/3, Seite 1), Vorgangskennungen im Blattrand, Anschrift mit Anrede")
                 LabeledContent("JPEG-Qualität") {
                     HStack {
                         Slider(value: $jpegQuality, in: 0.3...0.95, step: 0.05)

@@ -12,6 +12,7 @@ enum SettingsKey {
     static let outputFolder = "outputFolder"
     static let filePrefix = "filePrefix"
     static let autoSaveAfterScan = "autoSaveAfterScan"
+    static let autoSplit = "autoSplit"
 }
 
 /// Momentaufnahme der Einstellungen (gespeichert in UserDefaults, bearbeitet per @AppStorage).
@@ -26,6 +27,7 @@ struct AppSettings {
     var outputFolder: URL
     var filePrefix: String
     var autoSaveAfterScan: Bool
+    var autoSplit: Bool
 
     static let languagePresets: [(label: String, value: String)] = [
         ("Deutsch + Englisch", "de-DE,en-US"),
@@ -53,6 +55,7 @@ struct AppSettings {
             SettingsKey.outputFolder: defaultOutputFolder,
             SettingsKey.filePrefix: "Scan_",
             SettingsKey.autoSaveAfterScan: false,
+            SettingsKey.autoSplit: true,
         ])
     }
 
@@ -70,7 +73,8 @@ struct AppSettings {
             outputFolder: URL(fileURLWithPath: d.string(forKey: SettingsKey.outputFolder) ?? defaultOutputFolder,
                               isDirectory: true),
             filePrefix: DocumentNaming.sanitizedPrefix(d.string(forKey: SettingsKey.filePrefix) ?? "Scan_"),
-            autoSaveAfterScan: d.bool(forKey: SettingsKey.autoSaveAfterScan)
+            autoSaveAfterScan: d.bool(forKey: SettingsKey.autoSaveAfterScan),
+            autoSplit: d.bool(forKey: SettingsKey.autoSplit)
         )
     }
 }

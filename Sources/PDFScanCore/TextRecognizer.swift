@@ -21,10 +21,11 @@ public enum TextRecognizer {
     public static func recognize(_ image: CGImage,
                                  languages: [String],
                                  orientation: CGImagePropertyOrientation = .up,
-                                 fast: Bool = false) throws -> [RecognizedLine] {
+                                 fast: Bool = false,
+                                 languageCorrection: Bool? = nil) throws -> [RecognizedLine] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = fast ? .fast : .accurate
-        request.usesLanguageCorrection = !fast
+        request.usesLanguageCorrection = languageCorrection ?? !fast
         if !languages.isEmpty {
             // Nicht unterstützte Sprachen würden die Anfrage scheitern lassen.
             let supported = Set((try? request.supportedRecognitionLanguages()) ?? [])
