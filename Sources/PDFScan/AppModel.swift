@@ -364,11 +364,37 @@ final class AppModel: ObservableObject {
         let sources = groups.map { snapshot[$0[0]].sourceName }
         // Importierte Dokumente landen neben dem Original, gescannte im Zielordner.
         let outputFolder = settings.outputFolder
-        let folders = groups.map { group -> URL in
-            guard snapshot[group[0]].sourceName != nil, let folder = snapshot[group[0]].sourceFolder else {
-                return outputFolder
+        var folders: [URL] = []
+        var blocked: [URL: [Int]] = [:]
+        for (index, group) in groups.enumerated() {
+            let first = snapshot[group[0]]
+            guard first.sourceName != nil, let folder = first.sourceFolder else {
+                folders.append(outputFolder)
+                continue
             }
-            return FileManager.default.isWritableFile(atPath: folder.path) ? folder : outputFolder
+            folders.append(folder)
+            if !FileManager.default.isWritableFile(atPath: folder.path) {
+                blocked[folder, default: []].append(index)
+            }
+        }
+        // Ordner des Originals nicht beschreibbar: nachfragen statt ausweichen.
+        var explicitTargets: [Int: URL] = [:]
+        for (folder, indices) in blocked.sorted(by: { $0.key.path < $1.key.path }) {
+            guard let choice = askForTarget(blockedFolder: folder, suggestedName:
+                    indices.count == 1 ? DocumentNaming.ocrFileName(sourceName: sources[indices[0]] ?? "") : nil,
+                    documentCount: indices.count, directory: outputFolder)
+            else {
+                isSaving = false
+                status = "Speichern abgebrochen"
+                return
+            }
+            switch choice {
+            case .file(let url):
+                explicitTargets[indices[0]] = url
+                folders[indices[0]] = url.deletingLastPathComponent()
+            case .folder(let url):
+                for index in indices { folders[index] = url }
+            }
         }
         let documents = groups.map { group in
             group.map { PDFPageSource(imageURL: snapshot[$0].url, dpi: snapshot[$0].dpi, lines: snapshot[$0].lines) }
@@ -381,10 +407,12 @@ final class AppModel: ObservableObject {
         status = documents.count == 1
             ? "Erzeuge PDF mit \(documents[0].count) Seiten…"
             : "Erzeuge \(documents.count) PDFs…"
+        let targetFolders = folders
+        let chosenTargets = explicitTargets
         queue.async { [weak self] in
             var temporaries: [URL] = []
             let outcome: Result<[URL], Error> = Result {
-                for folder in Set(folders) {
+                for folder in Set(targetFolders) {
                     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 }
                 for (index, pages) in documents.enumerated() {
@@ -406,8 +434,16 @@ final class AppModel: ObservableObject {
                 }
                 // Importierte Dokumente: vorhandene Dateien nie überschreiben.
                 var used = Set<URL>()
-                let targets = names.indices.map { index -> URL in
-                    let folder = folders[index]
+                let targets = try names.indices.map { index -> URL in
+                    if let explicit = chosenTargets[index] {
+                        // Im Speichern-Dialog gewählt – Überschreiben hat der Dialog bereits bestätigt.
+                        if FileManager.default.fileExists(atPath: explicit.path) {
+                            try FileManager.default.removeItem(at: explicit)
+                        }
+                        used.insert(explicit)
+                        return explicit
+                    }
+                    let folder = targetFolders[index]
                     guard sources[index] != nil else { return folder.appendingPathComponent(names[index]) }
                     let unique = DocumentNaming.unique(names[index]) {
                         exists($0, in: folder) || used.contains(folder.appendingPathComponent($0))
@@ -440,6 +476,39 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private enum TargetChoice {
+        case file(URL)
+        case folder(URL)
+    }
+
+    /// Speichern-Dialog (ein Dokument) bzw. Ordnerauswahl (mehrere Dokumente) für einen
+    /// schreibgeschützten Ursprungsordner. `nil` = abgebrochen.
+    private func askForTarget(blockedFolder: URL, suggestedName: String?, documentCount: Int,
+                              directory: URL) -> TargetChoice? {
+        let location = (blockedFolder.path as NSString).abbreviatingWithTildeInPath
+        if let suggestedName {
+            let panel = NSSavePanel()
+            panel.title = "Durchsuchbares PDF speichern"
+            panel.message = "In „\(location)“ kann nicht gespeichert werden. Wohin soll das Dokument?"
+            panel.nameFieldStringValue = suggestedName
+            panel.allowedContentTypes = [.pdf]
+            panel.canCreateDirectories = true
+            panel.directoryURL = directory
+            guard panel.runModal() == .OK, let url = panel.url else { return nil }
+            return .file(url)
+        }
+        let panel = NSOpenPanel()
+        panel.title = "Ordner für durchsuchbare PDFs wählen"
+        panel.message = "In „\(location)“ kann nicht gespeichert werden. Wohin sollen die \(documentCount) Dokumente?"
+        panel.prompt = "Hier speichern"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = directory
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return .folder(url)
     }
 
     func showScannerInfo() {
