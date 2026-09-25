@@ -14,8 +14,9 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
 - **Automatisch aufrecht drehen**: Falsch herum eingelegte Seiten werden anhand des Textes erkannt und gedreht.
 - **Leerseiten weglassen**: Unbedruckte Rückseiten beim Duplex-Scan werden erkannt und abgewählt. Man kann sie per
   Häkchen wieder aufnehmen.
-- **In einzelne Dokumente trennen**: Ein Stapel wird an Trennstellen in mehrere PDFs aufgeteilt. Eine
-  Trennstelle setzt man per ⌘T, über das Scheren-Symbol oder das Kontextmenü („Neues Dokument ab dieser Seite“).
+- **Automatisch in einzelne Dokumente trennen** mit der Logik aus `reference/split_docs.py`: Zähler
+  („1/3“, „Seite 1“, senkrechter Randblock), Vorgangskennungen im Blattrand, Anschrift mit Anrede. Der Grund
+  steht an jeder Trennlinie. Mit ⌘T setzt oder entfernt man Trennstellen von Hand, mit ⇧⌘T berechnet man sie neu.
 - **Einheitliche Dateinamen**: `<Präfix><Jahr>_<Monat>_<Tag>_<Batch>_<Dokument>.pdf`, z. B.
   `Scan_2026_09_25_003_01.pdf`. Details siehe unten.
 - Seiten **sortieren** (Drag & Drop), **drehen**, **löschen**, erkannten Text in der Vorschau prüfen.
@@ -73,6 +74,21 @@ per Rechtsklick → „Öffnen“ starten oder vorher `xattr -dr com.apple.quara
 Der Zielordner, das Präfix, die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
 **PDFScan → Einstellungen** (⌘,) ändern.
 
+## Automatische Trennung
+
+Die Regeln und Schwellwerte stammen unverändert aus `reference/split_docs.py`. Ein Paritätstest prüft
+die Swift-Portierung gegen das Original: `scripts/gen_split_parity.py` erzeugt 80 zufällige Sammelscans,
+das Python-Skript bestimmt die Soll-Trennung, und `swift test` vergleicht. Wer die Python-Logik ändert,
+kopiert sie nach `reference/`, erzeugt die Fälle neu und passt dann die Swift-Seite an, bis der Test grün ist.
+
+Unterschiede zum Skript:
+- Die Eingabe ist Vision-OCR statt der pdfplumber-Textebene. Die Zeilen werden nach ihrer Position sortiert,
+  und als Randtext zählt alles, was vollständig in der 30-pt-Zone liegt.
+- Senkrecht gedruckte Randtexte liest die App zusätzlich aus ausgeschnittenen und gedrehten Randstreifen.
+- Die Postleitzahl-Regel für die Anschrift erkennt auch Orte mit Umlaut (Ö…, Ü…).
+- Leerseiten werden vor dem Trennen herausgenommen. Sonst würden Duplex-Rückseiten als Einschübe gelten.
+- Einschübe stehen in der Seitenliste direkt hinter ihrem Dokument.
+
 ## Tipps für alte Dokumente
 
 - **300 dpi** reichen für normale Schreibmaschinen- und Druckschrift. **400 dpi** lohnen sich bei sehr kleiner Schrift.
@@ -92,6 +108,8 @@ Der Zielordner, das Präfix, die Auflösung, Farbe/Graustufen, OCR-Sprachen und 
 | `Sources/PDFScanCore/TextRecognizer.swift` | OCR und Erkennung der Ausrichtung (Vision) |
 | `Sources/PDFScanCore/BlankPageDetector.swift` | Erkennung von Leerseiten, robust gegen vergilbtes Papier |
 | `Sources/PDFScanCore/SearchablePDFWriter.swift` | PDF mit Scan-Bild und unsichtbarer Textebene |
+| `Sources/PDFScanCore/DocumentBoundaryDetector.swift` | Trennlogik, portiert aus `reference/split_docs.py` |
+| `Sources/PDFScanCore/PageTextBuilder.swift` | Seitentext und Randtext aus der OCR, Randstreifen-Leser |
 | `Sources/PDFScanCore/DocumentNaming.swift` | Dateinamen-Schema, Batch-Zähler, Aufteilung in Dokumente |
 | `Sources/PDFScanCore/ImageOps.swift` | Bilder laden, drehen, skalieren, PDFs rastern |
 
