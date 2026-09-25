@@ -80,20 +80,17 @@ struct PageListView: View {
 
             Rectangle().fill(Theme.border).frame(height: 1)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle(isOn: $duplex) {
-                    IconLabel("Beidseitig scannen", systemImage: "doc.on.doc", size: Theme.smallIconSize)
-                }
-                Toggle(isOn: $autoSave) {
-                    IconLabel("Nach jedem Scan speichern", systemImage: "bolt.fill", size: Theme.smallIconSize)
-                }
-                .help("Stapelmodus: jeder Einzug wird ohne Rückfrage gespeichert")
+            VStack(spacing: 0) {
+                ToggleRow(title: "Beidseitig scannen", systemImage: "doc.on.doc", isOn: $duplex)
+                Rectangle().fill(Theme.border).frame(height: 1).padding(.leading, 44)
+                ToggleRow(title: "Nach jedem Scan speichern", systemImage: "bolt.fill", isOn: $autoSave)
+                    .help("Stapelmodus: jeder Einzug wird ohne Rückfrage gespeichert")
             }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .font(.callout)
-            .foregroundStyle(Theme.textPrimary)
-            .padding(14)
+            .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.surface))
+            .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.border, lineWidth: 1))
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
         }
         .background(Theme.sidebar)
     }

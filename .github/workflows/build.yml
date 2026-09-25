@@ -32,7 +32,7 @@ jobs:
           sleep 25
           screencapture -x build/screenshot.png
           kill $APP_PID || true
-          sips -Z 1100 -s format jpeg -s formatOptions 55 build/screenshot.png --out build/screenshot.jpg
+          sips -Z 900 -s format jpeg -s formatOptions 40 build/screenshot.png --out build/screenshot.jpg
           echo "SCREENSHOT-BEGIN"
           base64 -b 120 -i build/screenshot.jpg
           echo "SCREENSHOT-END"

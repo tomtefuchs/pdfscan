@@ -10,7 +10,9 @@ struct ContentView: View {
             PageListView()
                 .navigationSplitViewColumnWidth(min: 300, ideal: 360)
         } detail: {
+            // Statusleiste nur unter der Detailansicht, damit sie die Seitenleiste nicht überdeckt.
             PageDetailView()
+                .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -19,35 +21,30 @@ struct ContentView: View {
                     Button {
                         scanner.cancelScan()
                     } label: {
-                        IconLabel("Abbrechen", systemImage: "stop.circle.fill")
+                        IconLabel("Abbrechen", systemImage: "stop.circle.fill", size: 18)
                     }
-                    .tint(Theme.danger)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(ActionButtonStyle(prominent: true, color: Theme.danger))
                 } else {
                     Button {
                         model.startScan()
                     } label: {
-                        IconLabel("Scannen", systemImage: "scanner.fill")
-                            .labelStyle(.titleAndIcon)
+                        IconLabel("Scannen", systemImage: "scanner.fill", size: 18)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.accent)
+                    .buttonStyle(ActionButtonStyle(prominent: true))
                     .disabled(scanner.selectedScanner == nil || scanner.phase == .connecting)
                     .help("Alle Blätter im Einzug scannen und an das aktuelle Dokument anhängen (⌘R)")
                 }
                 Button {
                     model.showImportPanel()
                 } label: {
-                    IconLabel("Importieren", systemImage: "square.and.arrow.down.fill")
+                    IconLabel("Importieren", systemImage: "square.and.arrow.down.fill", size: 18)
                 }
+                .buttonStyle(ActionButtonStyle())
                 .help("Bilder oder PDFs importieren und per OCR durchsuchbar machen")
             }
         }
         .toolbarBackground(Theme.window, for: .windowToolbar)
         .toolbarBackground(.visible, for: .windowToolbar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            StatusBar()
-        }
         .alert("Fehler", isPresented: Binding(get: { model.errorMessage != nil },
                                               set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
@@ -85,7 +82,7 @@ private struct ScannerPicker: View {
     }
 }
 
-private struct StatusBar: View {
+struct StatusBar: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var scanner: ScannerService
 

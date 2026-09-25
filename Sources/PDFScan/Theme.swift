@@ -79,3 +79,56 @@ struct StatusPill: View {
         .overlay(Capsule().strokeBorder(color.opacity(0.35), lineWidth: 1))
     }
 }
+
+/// Große Aktionsknöpfe (Werkzeugleiste): eigener Stil, weil macOS Toolbar-Knöpfe sonst sehr klein zeichnet.
+struct ActionButtonStyle: ButtonStyle {
+    var prominent = false
+    var color: Color = Theme.accent
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(.titleAndIcon)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(prominent ? Color.white : Theme.textPrimary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.corner)
+                    .fill(prominent ? color : Theme.raised)
+                    .brightness(configuration.isPressed ? -0.08 : 0)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.corner)
+                    .strokeBorder(prominent ? Color.clear : Theme.border, lineWidth: 1)
+            )
+            .opacity(isEnabled ? 1 : 0.45)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.corner))
+    }
+}
+
+/// Einstellungszeile mit Symbol, Text und Schalter – Symbole in fester Breite, damit alles fluchtet.
+struct ToggleRow: View {
+    let title: String
+    let systemImage: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: Theme.smallIconSize, weight: .medium))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 22)
+            Text(title)
+                .foregroundStyle(Theme.textPrimary)
+            Spacer(minLength: 8)
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .font(.callout)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+    }
+}
