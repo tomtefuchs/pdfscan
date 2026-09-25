@@ -34,6 +34,8 @@ final class PipelineTests: XCTestCase {
         return ctx.makeImage()!
     }
 
+    func makePageForDiagnostics() -> CGImage { makePage(lines: letter) }
+
     private func temporaryURL(_ ext: String) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
     }
