@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift-Version
+        run: swift --version
+      - name: Tests (OCR, Drehung, Leerseiten, PDF)
+        run: swift test
+      - name: App bauen (Universal)
+        run: UNIVERSAL=1 ./scripts/build-app.sh
+      - name: App zippen
+        run: ditto -c -k --keepParent build/PDFScan.app build/PDFScan.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFScan
+          path: build/PDFScan.zip
