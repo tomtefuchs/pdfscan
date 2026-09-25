@@ -43,6 +43,49 @@ public struct DocumentNaming {
         return nextBatch(existingFileNames: names, date: date, calendar: calendar)
     }
 
+    /// Dateinamen für alle Dokumente eines Speichervorgangs.
+    ///
+    /// - Parameter sources: pro Dokument der Name der importierten Ursprungsdatei (ohne Endung)
+    ///   oder `nil` für gescannte Dokumente.
+    /// - Gescannte Dokumente: `<Präfix><Datum>_<Batch>_<Dokument>.pdf`, fortlaufend gezählt.
+    /// - Importierte Dokumente: `<alter Name>_ocr.pdf`; wurde eine Datei in mehrere Dokumente
+    ///   getrennt, `<alter Name>_ocr_01.pdf`, `_ocr_02.pdf` …
+    public func fileNames(sources: [String?], batch: Int, date: Date, calendar: Calendar = .current) -> [String] {
+        var perSource: [String: Int] = [:]
+        for case let source? in sources { perSource[source, default: 0] += 1 }
+        var scanned = 0
+        var seen: [String: Int] = [:]
+        return sources.map { source in
+            guard let source else {
+                scanned += 1
+                return fileName(date: date, batch: batch, document: scanned, calendar: calendar)
+            }
+            seen[source, default: 0] += 1
+            let part = (perSource[source] ?? 0) > 1 ? seen[source] : nil
+            return Self.ocrFileName(sourceName: source, part: part)
+        }
+    }
+
+    /// `<alter Name>_ocr.pdf` bzw. `<alter Name>_ocr_02.pdf`.
+    public static func ocrFileName(sourceName: String, part: Int? = nil) -> String {
+        var base = sanitizedPrefix(sourceName)
+        if base.isEmpty { base = "Dokument" }
+        return base + "_ocr" + (part.map { String(format: "_%02d", $0) } ?? "") + ".pdf"
+    }
+
+    /// Hängt `_2`, `_3` … an, solange der Name schon vergeben ist.
+    public static func unique(_ fileName: String, exists: (String) -> Bool) -> String {
+        guard exists(fileName) else { return fileName }
+        let base = (fileName as NSString).deletingPathExtension
+        let ext = (fileName as NSString).pathExtension
+        var counter = 2
+        while true {
+            let candidate = "\(base)_\(counter)" + (ext.isEmpty ? "" : ".\(ext)")
+            if !exists(candidate) { return candidate }
+            counter += 1
+        }
+    }
+
     /// Entfernt Zeichen, die in Dateinamen stören (Pfadtrenner, Doppelpunkt).
     public static func sanitizedPrefix(_ prefix: String) -> String {
         prefix.trimmingCharacters(in: .whitespacesAndNewlines)

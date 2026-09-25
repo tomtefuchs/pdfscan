@@ -25,6 +25,8 @@ struct ScanPage: Identifiable {
     var splitReason: String?
     /// Aufbereiteter Text für die automatische Trennung.
     var pageText: PageText?
+    /// Name der importierten Ursprungsdatei (ohne Endung); `nil` bei gescannten Seiten.
+    var sourceName: String?
 
     var text: String { lines.map(\.text).joined(separator: "\n") }
     var wordCount: Int { lines.reduce(0) { $0 + $1.text.split(separator: " ").count } }
@@ -129,21 +131,22 @@ final class AppModel: ObservableObject {
         pendingJobs += 1
         jobs.enter()
         queue.async { [weak self] in
-            var imported: [(URL, Double)] = []
+            var imported: [(URL, Double, String)] = []
             var failures: [String] = []
-            func store(_ image: CGImage, dpi: Double) {
+            func store(_ image: CGImage, dpi: Double, source: String) {
                 let target = directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
                 if (try? ImageOps.writePNG(image, to: target, dpi: dpi)) != nil {
-                    imported.append((target, dpi))
+                    imported.append((target, dpi, source))
                 }
             }
             for url in urls {
                 let before = imported.count
+                let source = url.deletingPathExtension().lastPathComponent
                 if UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
-                    ImageOps.renderPDFPages(at: url, dpi: 300) { store($0, dpi: 300) }
+                    ImageOps.renderPDFPages(at: url, dpi: 300) { store($0, dpi: 300, source: source) }
                 } else {
                     let dpi = ImageOps.dpi(at: url) ?? fallbackDPI
-                    for image in ImageOps.loadImages(at: url) { store(image, dpi: dpi) }
+                    for image in ImageOps.loadImages(at: url) { store(image, dpi: dpi, source: source) }
                 }
                 if imported.count == before { failures.append(url.lastPathComponent) }
             }
@@ -151,7 +154,7 @@ final class AppModel: ObservableObject {
             let unreadable = failures
             DispatchQueue.main.async {
                 guard let self else { return }
-                pagesFound.forEach { self.addPage(url: $0.0, dpi: $0.1) }
+                pagesFound.forEach { self.addPage(url: $0.0, dpi: $0.1, sourceName: $0.2) }
                 self.status = unreadable.isEmpty
                     ? "\(pagesFound.count) Seiten importiert"
                     : "Nicht lesbar: \(unreadable.joined(separator: ", "))"
@@ -164,8 +167,9 @@ final class AppModel: ObservableObject {
 
     // MARK: - Seiten bearbeiten
 
-    private func addPage(url: URL, dpi: Double) {
-        let page = ScanPage(url: url, dpi: dpi)
+    private func addPage(url: URL, dpi: Double, sourceName: String? = nil) {
+        var page = ScanPage(url: url, dpi: dpi)
+        page.sourceName = sourceName
         pages.append(page)
         if selection == nil { selection = page.id }
         process(page.id, rotation: 0, detectOrientation: AppSettings.current.autoRotate, isInitial: true)
@@ -352,6 +356,8 @@ final class AppModel: ObservableObject {
             return
         }
 
+        // Importierte Dokumente heißen wie ihre Ursprungsdatei plus „_ocr“ (maßgeblich ist die erste Seite).
+        let sources = groups.map { snapshot[$0[0]].sourceName }
         let documents = groups.map { group in
             group.map { PDFPageSource(imageURL: snapshot[$0].url, dpi: snapshot[$0].dpi, lines: snapshot[$0].lines) }
         }
@@ -368,24 +374,32 @@ final class AppModel: ObservableObject {
             var temporaries: [URL] = []
             let outcome: Result<[URL], Error> = Result {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                for pages in documents {
+                for (index, pages) in documents.enumerated() {
                     let temporary = workDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("pdf")
                     temporaries.append(temporary)
-                    let title = "Scan \(Self.titleFormatter.string(from: now))"
+                    let title = sources[index] ?? "Scan \(Self.titleFormatter.string(from: now))"
                     try SearchablePDFWriter.write(pages, to: temporary, title: title, jpegQuality: settings.jpegQuality)
                 }
                 // Erst wenn alle PDFs fertig sind, mit einer freien Batch-Nummer in den Zielordner verschieben.
+                func exists(_ name: String) -> Bool {
+                    FileManager.default.fileExists(atPath: folder.appendingPathComponent(name).path)
+                }
                 var batch = naming.nextBatch(in: folder, date: now)
-                var targets: [URL] = []
-                repeat {
-                    targets = documents.indices.map {
-                        folder.appendingPathComponent(naming.fileName(date: now, batch: batch, document: $0 + 1))
-                    }
-                    if targets.contains(where: { FileManager.default.fileExists(atPath: $0.path) }) {
-                        batch += 1
-                        targets = []
-                    }
-                } while targets.isEmpty
+                var names = naming.fileNames(sources: sources, batch: batch, date: now)
+                // Gescannte Dokumente: nächste Batch-Nummer, falls eine schon vergeben ist.
+                while zip(sources, names).contains(where: { $0.0 == nil && exists($0.1) }) {
+                    batch += 1
+                    names = naming.fileNames(sources: sources, batch: batch, date: now)
+                }
+                // Importierte Dokumente: vorhandene Dateien nie überschreiben.
+                var used = Set<String>()
+                names = zip(sources, names).map { source, name in
+                    guard source != nil else { return name }
+                    let unique = DocumentNaming.unique(name) { exists($0) || used.contains($0) }
+                    used.insert(unique)
+                    return unique
+                }
+                let targets = names.map { folder.appendingPathComponent($0) }
                 for (temporary, target) in zip(temporaries, targets) {
                     try FileManager.default.moveItem(at: temporary, to: target)
                 }

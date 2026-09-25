@@ -17,6 +17,27 @@ final class DocumentNamingTests: XCTestCase {
                        "2026_09_05_001_02.pdf")
     }
 
+    func testImportedDocumentsKeepTheirName() {
+        let naming = DocumentNaming(prefix: "Scan_")
+        let names = naming.fileNames(sources: [nil, "Mietvertrag", nil, "Sammelscan", "Sammelscan", "Brief 1987"],
+                                     batch: 4, date: date, calendar: calendar)
+        XCTAssertEqual(names, [
+            "Scan_2026_09_05_004_01.pdf",
+            "Mietvertrag_ocr.pdf",
+            "Scan_2026_09_05_004_02.pdf",
+            "Sammelscan_ocr_01.pdf",
+            "Sammelscan_ocr_02.pdf",
+            "Brief 1987_ocr.pdf",
+        ])
+        XCTAssertEqual(DocumentNaming.ocrFileName(sourceName: "Akte: 2/3"), "Akte- 2-3_ocr.pdf")
+    }
+
+    func testUniqueNameAppendsCounter() {
+        let taken: Set<String> = ["Mietvertrag_ocr.pdf", "Mietvertrag_ocr_2.pdf"]
+        XCTAssertEqual(DocumentNaming.unique("Mietvertrag_ocr.pdf", exists: taken.contains), "Mietvertrag_ocr_3.pdf")
+        XCTAssertEqual(DocumentNaming.unique("Neu_ocr.pdf", exists: taken.contains), "Neu_ocr.pdf")
+    }
+
     func testPrefixIsSanitized() {
         XCTAssertEqual(DocumentNaming.sanitizedPrefix(" Akte/Steuer: "), "Akte-Steuer-")
     }
