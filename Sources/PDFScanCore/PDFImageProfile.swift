@@ -21,7 +21,7 @@ public struct PDFImageProfile: Equatable, Sendable {
 
     /// Etwa 100–250 KB pro A4-Seite.
     public static let compact = PDFImageProfile(maxDPI: 200, grayscaleWhenColorless: true,
-                                                whitenBackground: true, jpegQuality: 0.6)
+                                                whitenBackground: true, jpegQuality: 0.5)
     /// Etwa 300–600 KB pro A4-Seite.
     public static let balanced = PDFImageProfile(maxDPI: 300, grayscaleWhenColorless: true,
                                                  whitenBackground: false, jpegQuality: 0.7)
@@ -100,8 +100,10 @@ extension ImageOps {
         // Nur echte Papierflächen aufhellen, dunkle Seiten (Fotos) unverändert lassen.
         guard paper > 120 else { return ctx.makeImage() }
 
-        let white = Double(paper) - 8     // knapp unter dem Papierton ist schon Weiß
-        let black = 30.0
+        // Papierstruktur und Flecken (bis gut 10 % dunkler als das Papier) werden Weiß,
+        // Schrift bleibt kräftig. Helle Bleistift- oder Stempelreste (≈ 50 % Grau) bleiben sichtbar.
+        let white = Double(paper) - max(20, Double(paper) * 0.11)
+        let black = 40.0
         var table = [UInt8](repeating: 0, count: 256)
         for v in 0..<256 {
             let t = (Double(v) - black) / (white - black)
