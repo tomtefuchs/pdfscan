@@ -110,22 +110,54 @@ final class ScannerService: NSObject, ObservableObject {
 
     /// Setzt das Papierformat des Einzugs. Ohne ausdrückliche Angabe nimmt manch ein Treiber
     /// (beobachtet: Epson FF-680W) A5 und schneidet A4-Blätter ab.
+    /// „Automatisch“ schaltet die Größenerkennung des Treibers ein (falls vorhanden) und stellt die
+    /// größte Scanfläche ein; ohne Größenerkennung gilt A4.
     private func applyPaperFormat(_ format: PaperFormat, to feeder: ICScannerFunctionalUnitDocumentFeeder) {
         guard format != .driverDefault else {
             activeFormatDescription = describe(feeder)
             return
         }
+        var effective = format
+        let autoSize = autoSizeFeature(of: feeder)
+        if format == .auto {
+            if let autoSize, setAutoSize(autoSize, enabled: true) {
+                // Scanfläche trotzdem groß wählen, falls die Erkennung einmal versagt.
+            } else {
+                effective = .a4
+            }
+        } else if let autoSize {
+            _ = setAutoSize(autoSize, enabled: false)
+        }
+
         let candidates = paperCandidates(feeder)
-        if let match = format.bestMatch(in: candidates),
+        if let match = effective.bestMatch(in: candidates),
            let type = ICScannerDocumentType(rawValue: match.id) {
             feeder.documentType = type
-        } else if let raw = Self.fallbackRawValue(format),
+        } else if let raw = Self.fallbackRawValue(effective),
                   feeder.supportedDocumentTypes.contains(Int(raw)),
                   let type = ICScannerDocumentType(rawValue: raw) {
             // Treiber liefert keine brauchbaren Größen: Nummern laut ImageCaptureCore-Header.
             feeder.documentType = type
         }
-        activeFormatDescription = describe(feeder)
+        activeFormatDescription = effective == .auto ? "automatisch" : describe(feeder)
+    }
+
+    /// Herstellerfunktion „Automatische Größenerkennung“, sofern der Treiber sie anbietet.
+    private func autoSizeFeature(of unit: ICScannerFunctionalUnit) -> ICScannerFeatureEnumeration? {
+        let features: [ICScannerFeature]? = unit.vendorFeatures
+        return features?.lazy.compactMap { $0 as? ICScannerFeatureEnumeration }.first { feature in
+            let name: String? = feature.humanReadableName
+            return AutoSizeFeature.matches(name: name ?? "")
+        }
+    }
+
+    private func setAutoSize(_ feature: ICScannerFeatureEnumeration, enabled: Bool) -> Bool {
+        let values = feature.values
+        guard let index = AutoSizeFeature.optionIndex(labels: feature.menuItemLabels, enabled: enabled),
+              index < values.count
+        else { return false }
+        feature.currentValue = values[index]
+        return true
     }
 
     /// Alle vom Einzug angebotenen Formate mit ihrer tatsächlichen Größe in mm.
@@ -157,7 +189,7 @@ final class ScannerService: NSObject, ObservableObject {
         case .letter: return 3
         case .legal: return 4
         case .a5: return 5
-        case .largest, .driverDefault: return nil
+        case .auto, .largest, .driverDefault: return nil
         }
     }
 

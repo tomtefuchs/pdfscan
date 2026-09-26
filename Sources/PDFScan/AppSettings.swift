@@ -58,7 +58,7 @@ struct AppSettings {
             SettingsKey.filePrefix: "Scan_",
             SettingsKey.autoSaveAfterScan: false,
             SettingsKey.autoSplit: true,
-            SettingsKey.paperFormat: PaperFormat.a4.rawValue,
+            SettingsKey.paperFormat: PaperFormat.auto.rawValue,
         ])
     }
 
@@ -78,7 +78,7 @@ struct AppSettings {
             filePrefix: DocumentNaming.sanitizedPrefix(d.string(forKey: SettingsKey.filePrefix) ?? "Scan_"),
             autoSaveAfterScan: d.bool(forKey: SettingsKey.autoSaveAfterScan),
             autoSplit: d.bool(forKey: SettingsKey.autoSplit),
-            paperFormat: PaperFormat(rawValue: d.string(forKey: SettingsKey.paperFormat) ?? "") ?? .a4
+            paperFormat: PaperFormat(rawValue: d.string(forKey: SettingsKey.paperFormat) ?? "") ?? .auto
         )
     }
 }

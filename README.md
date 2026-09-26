@@ -78,7 +78,7 @@ per Rechtsklick → „Öffnen“ starten oder vorher `xattr -dr com.apple.quara
 3. Seiten prüfen und an jeder Stelle, an der ein neues Dokument beginnt, ⌘T drücken.
 4. **Speichern** (⌘S). Die PDFs landen in `~/Dokumente/Scans/`, z. B. `Scan_2026_09_25_001_01.pdf`.
 
-Der Zielordner, das Präfix, das Papierformat (Standard A4), die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
+Der Zielordner, das Präfix, das Papierformat (Standard: automatisch), die Auflösung, Farbe/Graustufen, OCR-Sprachen und die JPEG-Qualität lassen sich unter
 **PDFScan → Einstellungen** (⌘,) ändern.
 
 ## Automatische Trennung
@@ -98,7 +98,10 @@ Unterschiede zum Skript:
 
 ## Tipps für alte Dokumente
 
-- **Ränder abgeschnitten?** Das Papierformat in den Einstellungen muss mindestens so groß sein wie das
+- **Papierformat „Automatisch“** (Standard) schaltet die Größenerkennung des Scanner-Treibers ein. Beim
+  Epson FF-680W heißt sie „Automatische Größenerkennung → Standardpapier“. Gemischte Formate im Stapel werden
+  so jeweils in ihrer echten Größe erfasst. Bietet ein Treiber keine Größenerkennung, scannt die App in A4.
+- **Ränder abgeschnitten?** Bei einem festen Papierformat muss es mindestens so groß sein wie das
   größte Blatt im Stapel. Kleinere Blätter bekommen dann einen Rand. Unter **Scanner → Scanner-Info…**
   steht, welche Formate der Treiber anbietet.
 

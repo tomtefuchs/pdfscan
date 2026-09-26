@@ -14,7 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.filePrefix) private var filePrefix = "Scan_"
     @AppStorage(SettingsKey.autoSaveAfterScan) private var autoSave = false
     @AppStorage(SettingsKey.autoSplit) private var autoSplit = true
-    @AppStorage(SettingsKey.paperFormat) private var paperFormat = PaperFormat.a4
+    @AppStorage(SettingsKey.paperFormat) private var paperFormat = PaperFormat.auto
 
     var body: some View {
         Form {
@@ -34,7 +34,7 @@ struct SettingsView: View {
                         Text(format.label).tag(format)
                     }
                 }
-                .help("Kleinere Blätter werden mit Rand erfasst, größere abgeschnitten")
+                .help("Automatisch: der Scanner erkennt die Blattgröße selbst. Feste Formate: kleinere Blätter mit Rand, größere abgeschnitten")
                 Toggle("Beidseitig scannen (Duplex)", isOn: $duplex)
             }
 

@@ -18,6 +18,7 @@ final class PaperFormatTests: XCTestCase {
         XCTAssertEqual(PaperFormat.legal.bestMatch(in: offered)?.id, 9)
         XCTAssertEqual(PaperFormat.largest.bestMatch(in: offered)?.id, 9)
         XCTAssertNil(PaperFormat.driverDefault.bestMatch(in: offered))
+        XCTAssertEqual(PaperFormat.auto.bestMatch(in: offered)?.id, 9)
     }
 
     func testLandscapeEntriesMatch() {
@@ -38,5 +39,18 @@ final class PaperFormatTests: XCTestCase {
         XCTAssertEqual(PaperFormat.millimeters(21, unitRawValue: 1, resolution: 300), 210, accuracy: 0.001)
         XCTAssertEqual(PaperFormat.millimeters(595.28, unitRawValue: 3, resolution: 300), 210, accuracy: 0.01)
         XCTAssertEqual(PaperFormat.millimeters(2480, unitRawValue: 5, resolution: 300), 209.97, accuracy: 0.01)
+    }
+
+    func testFindsEpsonAutoSizeFeature() {
+        XCTAssertTrue(AutoSizeFeature.matches(name: "Automatische Größenerkennung"))
+        XCTAssertTrue(AutoSizeFeature.matches(name: "Auto Size Detection"))
+        XCTAssertTrue(AutoSizeFeature.matches(name: "Automatische Gro\u{0308}ßenerkennung"))
+        XCTAssertFalse(AutoSizeFeature.matches(name: "Automatische Drehung"))
+        XCTAssertFalse(AutoSizeFeature.matches(name: "Leere Seiten überspringen"))
+
+        let labels = ["Aus", "Standardpapier", "Langes Papier"]
+        XCTAssertEqual(AutoSizeFeature.optionIndex(labels: labels, enabled: true), 1)
+        XCTAssertEqual(AutoSizeFeature.optionIndex(labels: labels, enabled: false), 0)
+        XCTAssertEqual(AutoSizeFeature.optionIndex(labels: ["Off", "On"], enabled: true), 1)
     }
 }
