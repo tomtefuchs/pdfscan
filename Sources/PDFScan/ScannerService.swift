@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import ImageCaptureCore
 import PDFScanCore
@@ -36,6 +37,11 @@ final class ScannerService: NSObject, ObservableObject {
     private let downloadDirectory: URL
     private var pendingScan: Options?
     private var activeResolution: Double = 300
+    /// Der Nutzer hat selbst einen Scanner gewählt – dann nicht mehr automatisch wechseln.
+    private var userPicked = false
+    /// Verbindungsversuche seit dem letzten Erfolg (für automatische Wiederholung).
+    private var connectAttempts = 0
+    private static let maxConnectAttempts = 3
 
     init(downloadDirectory: URL) {
         self.downloadDirectory = downloadDirectory
@@ -47,10 +53,33 @@ final class ScannerService: NSObject, ObservableObject {
             | ICDeviceLocationTypeMask.bonjour.rawValue
         browser.browsedDeviceTypeMask = ICDeviceTypeMask(rawValue: mask)!
         browser.start()
+        // Sitzung beim Beenden schließen, sonst bleibt der Scanner für die nächste Verbindung belegt.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            self?.closeSession()
+        }
     }
 
+    /// Name mit Verbindungsart, damit doppelt gefundene Geräte (USB und WLAN) unterscheidbar sind.
     func name(of scanner: ICScannerDevice) -> String {
-        scanner.name ?? "Scanner"
+        let base = scanner.name ?? "Scanner"
+        let sameName = scanners.filter { ($0.name ?? "") == (scanner.name ?? "") }.count
+        let transport = Self.transport(of: scanner)
+        return sameName > 1 || transport != "USB" ? "\(base) (\(transport))" : base
+    }
+
+    static func transport(of device: ICDevice) -> String {
+        let raw = String(describing: device.transportType as Any).lowercased()
+        if raw.contains("usb") { return "USB" }
+        if raw.contains("tcp") || raw.contains("bonjour") || raw.contains("network") { return "Netzwerk" }
+        if raw.contains("bluetooth") { return "Bluetooth" }
+        return "lokal"
+    }
+
+    /// Vom Nutzer im Menü gewählt.
+    func userSelect(_ scanner: ICScannerDevice?) {
+        userPicked = true
+        select(scanner)
     }
 
     func select(_ scanner: ICScannerDevice?) {
@@ -60,11 +89,46 @@ final class ScannerService: NSObject, ObservableObject {
         selectedScanner = scanner
         supportsDuplex = false
         usesFeeder = false
+        connectAttempts = 0
         guard let scanner else {
             phase = .idle
             return
         }
         connect(scanner)
+    }
+
+    /// Verbindung neu aufbauen (z. B. nach „Scanner belegt“).
+    func reconnect() {
+        guard let scanner = selectedScanner else {
+            if let first = bestCandidate() { select(first) }
+            return
+        }
+        connectAttempts = 0
+        if scanner.hasOpenSession {
+            scanner.requestCloseSession()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.selectedScanner === scanner else { return }
+            self.connect(scanner)
+        }
+    }
+
+    func closeSession() {
+        if let scanner = selectedScanner, scanner.hasOpenSession {
+            scanner.requestCloseSession()
+        }
+    }
+
+    /// Bevorzugt: Epson FastFoto vor anderen, USB vor Netzwerk.
+    private func score(_ scanner: ICScannerDevice) -> Int {
+        var score = 0
+        if (scanner.name ?? "").localizedCaseInsensitiveContains("FF-680") { score += 2 }
+        if Self.transport(of: scanner) == "USB" { score += 1 }
+        return score
+    }
+
+    private func bestCandidate(excluding excluded: ICScannerDevice? = nil) -> ICScannerDevice? {
+        scanners.filter { $0 !== excluded }.max { score($0) < score($1) }
     }
 
     func startScan(_ options: Options) {
@@ -195,8 +259,11 @@ final class ScannerService: NSObject, ObservableObject {
 
     /// Klartext-Übersicht über den Scanner – zum Nachvollziehen von Treiber-Eigenheiten.
     func diagnostics() -> String {
-        guard let scanner = selectedScanner else { return "Kein Scanner ausgewählt." }
-        var lines = ["Scanner: \(name(of: scanner))", "Verbindung: \(phase)"]
+        var lines = ["Gefundene Scanner: " + (scanners.isEmpty ? "keine"
+            : scanners.map { name(of: $0) + ($0 === selectedScanner ? " ← ausgewählt" : "") }.joined(separator: ", "))]
+        guard let scanner = selectedScanner else { return (lines + ["Kein Scanner ausgewählt."]).joined(separator: "\n") }
+        lines += ["Scanner: \(name(of: scanner))", "Verbindung: \(phase)",
+                  "Sitzung offen: \(scanner.hasOpenSession ? "ja" : "nein")"]
         let available = scanner.availableFunctionalUnitTypes.map { "\($0)" }.joined(separator: ", ")
         lines.append("Funktionseinheiten (Typ-Nr.): \(available)")
         let unit: ICScannerFunctionalUnit? = scanner.selectedFunctionalUnit
@@ -277,9 +344,14 @@ extension ScannerService: ICDeviceBrowserDelegate {
     func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
         guard let scanner = device as? ICScannerDevice, !scanners.contains(where: { $0 === scanner }) else { return }
         scanners.append(scanner)
-        // Epson FastFoto automatisch wählen, sonst den ersten gefundenen Scanner.
-        let isEpsonFF = (scanner.name ?? "").localizedCaseInsensitiveContains("FF-680")
-        if selectedScanner == nil || (isEpsonFF && phase != .scanning) {
+        guard let current = selectedScanner else {
+            select(scanner)
+            return
+        }
+        // Nur zu einem klar besseren Eintrag wechseln (z. B. derselbe Scanner per USB statt WLAN),
+        // nie mitten in einer funktionierenden Verbindung oder gegen die Wahl des Nutzers.
+        let settled = phase == .ready || phase == .scanning
+        if !userPicked, !settled, score(scanner) > score(current) {
             select(scanner)
         }
     }
@@ -287,7 +359,7 @@ extension ScannerService: ICDeviceBrowserDelegate {
     func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
         scanners.removeAll { $0 === device }
         if selectedScanner === device {
-            select(scanners.first)
+            select(bestCandidate())
         }
     }
 }
@@ -297,10 +369,29 @@ extension ScannerService: ICScannerDeviceDelegate {
 
     func device(_ device: ICDevice, didOpenSessionWithError error: Error?) {
         guard device === selectedScanner, let scanner = device as? ICScannerDevice else { return }
-        if let error {
-            fail("Verbindung fehlgeschlagen: \(error.localizedDescription)")
-        } else {
+        guard let error else {
+            connectAttempts = 0
             selectPreferredUnit(scanner)
+            return
+        }
+        connectAttempts += 1
+        if connectAttempts < Self.maxConnectAttempts {
+            // Anderer Eintrag desselben Scanners (USB/WLAN)? Sonst derselbe nach kurzer Pause.
+            let sameName = scanners.first { $0 !== scanner && $0.name == scanner.name }
+            let next = userPicked ? scanner : (sameName ?? scanner)
+            phase = .connecting
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, self.selectedScanner === scanner else { return }
+                if next !== scanner {
+                    let attempts = self.connectAttempts
+                    self.select(next)
+                    self.connectAttempts = attempts
+                } else {
+                    self.connect(scanner)
+                }
+            }
+        } else {
+            fail(ScannerError.message(for: error))
         }
     }
 
@@ -319,7 +410,7 @@ extension ScannerService: ICScannerDeviceDelegate {
     func scannerDevice(_ scanner: ICScannerDevice, didSelect functionalUnit: ICScannerFunctionalUnit, error: Error?) {
         guard scanner === selectedScanner else { return }
         if let error {
-            fail("Scanner-Modus nicht verfügbar: \(error.localizedDescription)")
+            fail("Scanner-Modus nicht verfügbar: " + ScannerError.message(for: error))
         } else {
             unitSelected(functionalUnit)
         }
@@ -332,5 +423,31 @@ extension ScannerService: ICScannerDeviceDelegate {
     func scannerDevice(_ scanner: ICScannerDevice, didCompleteScanWithError error: Error?) {
         if phase == .scanning { phase = .ready }
         onScanFinished?(error)
+    }
+}
+
+/// Verständliche Meldungen für ImageCapture-Fehlercodes.
+enum ScannerError {
+    static func code(of error: Error) -> Int {
+        var code = (error as NSError).code
+        // Manche Codes kommen vorzeichenlos (z. B. 4294957394 statt -9902).
+        if code > Int(Int32.max), code <= Int(UInt32.max) { code -= Int(UInt32.max) + 1 }
+        return code
+    }
+
+    static func message(for error: Error) -> String {
+        let code = code(of: error)
+        let busy = "Andere Scan-Apps (Epson ScanSmart, Epson Scan 2, Digitalbilder) schließen, "
+            + "Scanner aus- und wieder einschalten, dann „Neu verbinden“."
+        switch code {
+        case -9902, -9927, -9958:
+            return "Scanner lässt sich nicht öffnen (Code \(code)). " + busy
+        case -9909, -9914, -9925, -9926:
+            return "Scanner wird von einer anderen App verwendet (Code \(code)). " + busy
+        case -9900, -9901, -9923:
+            return "Scanner nicht erreichbar (Code \(code)). Kabel bzw. WLAN prüfen, dann „Neu verbinden“."
+        default:
+            return "Verbindung fehlgeschlagen (Code \(code)): \(error.localizedDescription)"
+        }
     }
 }

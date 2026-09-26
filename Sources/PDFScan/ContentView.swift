@@ -66,7 +66,7 @@ private struct ScannerPicker: View {
     var body: some View {
         Picker(selection: Binding<ObjectIdentifier?>(
             get: { scanner.selectedScanner.map(ObjectIdentifier.init) },
-            set: { id in scanner.select(scanner.scanners.first { ObjectIdentifier($0) == id }) }
+            set: { id in scanner.userSelect(scanner.scanners.first { ObjectIdentifier($0) == id }) }
         )) {
             if scanner.scanners.isEmpty {
                 Text("Kein Scanner gefunden").tag(ObjectIdentifier?.none)
@@ -132,7 +132,21 @@ struct StatusBar: View {
         case .scanning:
             StatusPill(text: "Scanne", color: Theme.accent)
         case .failed(let message):
-            StatusPill(text: message, color: Theme.danger, systemImage: "exclamationmark.triangle.fill")
+            HStack(spacing: 8) {
+                Text(message)
+                    .lineLimit(2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .textSelection(.enabled)
+                StatusPill(text: "Nicht verbunden", color: Theme.danger, systemImage: "exclamationmark.triangle.fill")
+                    .help(message)
+                Button {
+                    scanner.reconnect()
+                } label: {
+                    IconLabel("Neu verbinden", systemImage: "arrow.clockwise", size: Theme.smallIconSize)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.accent)
+            }
         }
     }
 }
