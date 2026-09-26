@@ -39,7 +39,7 @@ def main():
     for i, e in enumerate(entries):
         mark = '>>' if any(d[0] == i for d in docs) else '  '
         print(f"{mark} Seite {e['page']:>3}  Zähler {str(nums[i]):<12} Kennungen {sorted(toks[i]) or '-'}"
-              f"  App: {'Schnitt' if e['startsDocument'] else '-'} {e['reason'] or ''}")
+              f"  App: {'Schnitt' if e['startsDocument'] else '-'} {e.get('reason') or ''}")
     got = {entries[d[0]]['page'] for d in docs}
     print(f"\nOriginal: {len(docs)} Dokumente, Starts {sorted(got)}")
     app = {e['page'] for e in entries if e['startsDocument']}

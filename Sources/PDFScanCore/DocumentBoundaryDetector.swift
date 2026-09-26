@@ -89,7 +89,10 @@ public enum DocumentBoundaryDetector {
     static let pgSlash = Rx(#"(?<![\d,.])(\d{1,3})\s*/\s*(\d{1,3})(?![\d,.])"#)
     static let pgWord = Rx(#"\bSeite\s+(\d{1,3})\b"#, [.caseInsensitive])
     static let cont = Rx(#"Fortsetzung auf Seite\s*0?(\d{1,3})"#, [.caseInsensitive])
-    static let salut = Rx(#"Sehr\s+geehrt\w*\s+(?:Herr|Frau|Damen)"#, [.caseInsensitive])
+    /// Anrede. Im Original nur „Sehr geehrte(r) Herr/Frau/Damen“ – Vereine, Genossenschaften und
+    /// Versicherungen schreiben aber auch „Sehr geehrtes Mitglied“, „Sehr geehrte Kundin“ usw.
+    /// Daher jedes Wort nach „Sehr geehrt…“, dazu „Guten Tag …“.
+    static let salut = Rx(#"(?:Sehr\s+geehrt\w*|Guten\s+Tag)\s+\w"#, [.caseInsensitive])
     /// Postleitzahl + Ort. Im Original `[A-ZAOU]` – gemeint sind offensichtlich die Umlaute.
     static let addr = Rx(#"\b\d{5}\s+[A-ZÄÖÜ][a-zäöüß]"#, [.anchorsMatchLines])
 

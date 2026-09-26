@@ -60,6 +60,24 @@ final class DocumentBoundaryTests: XCTestCase {
         XCTAssertEqual(result.documents, [[0, 1], [2]])
     }
 
+    /// Serienbriefe ohne Seitenzähler, Anrede „Sehr geehrtes Mitglied“ (z. B. Genossenschaft).
+    func testMemberLettersWithoutCountersAreSplit() {
+        func letter(_ year: Int) -> PageText {
+            PageText(body: "Beispiel eG, Postfach 1234, 24103 Kiel\nMax Mustermann\nHauptstr. 1\n24103 Kiel\n"
+                     + "Kiel, im März \(year)\nSehr geehrtes Mitglied,\nwir freuen uns, Ihnen mitzuteilen …",
+                     margin: "")
+        }
+        let statement = PageText(body: "Dividendenabrechnung\nGeschäftsguthaben am Berechnungsstichtag", margin: "")
+        let pages = [letter(2001), statement, letter(2000), statement, letter(1999)]
+        let result = DocumentBoundaryDetector.split(pages)
+        XCTAssertEqual(result.documents, [[0, 1], [2, 3], [4]])
+        XCTAssertEqual(result.reasons, [.firstPage, .letterHead, .letterHead])
+
+        // „Guten Tag Frau …“ zählt ebenso, eine bloße Erwähnung „sehr geehrt“ ohne Anschrift nicht.
+        XCTAssertTrue(DocumentBoundaryDetector.isHead("10115 Berlin\nGuten Tag Frau Muster,"))
+        XCTAssertFalse(DocumentBoundaryDetector.isHead("Sehr geehrtes Mitglied, ohne Anschrift"))
+    }
+
     func testInsertIsSplitOutWithoutReordering() {
         let pages = ["1/3", "2/3", "fremd", "3/3"].map { PageText(body: "Text\n\($0)", margin: "") }
         let result = DocumentBoundaryDetector.split(pages)
