@@ -15,7 +15,7 @@ final class DocumentBoundaryTests: XCTestCase {
         XCTAssertEqual(cases.count, 80)
         for (index, c) in cases.enumerated() {
             let pages = zip(c.bodies, c.margins).map { PageText(body: $0, margin: $1) }
-            let result = DocumentBoundaryDetector.split(pages)
+            let result = DocumentBoundaryDetector.split(pages, options: .original)
             XCTAssertEqual(result.starts.map(\.page), c.starts, "Fall \(index): Schnitte")
             XCTAssertEqual(result.documents, c.documents, "Fall \(index): Dokumente")
         }
@@ -64,10 +64,12 @@ final class DocumentBoundaryTests: XCTestCase {
     func testMemberLettersWithoutCountersAreSplit() {
         func letter(_ year: Int) -> PageText {
             PageText(body: "Beispiel eG, Postfach 1234, 24103 Kiel\nMax Mustermann\nHauptstr. 1\n24103 Kiel\n"
-                     + "Kiel, im März \(year)\nSehr geehrtes Mitglied,\nwir freuen uns, Ihnen mitzuteilen …",
+                     + "Kiel, im März \(year)\nSehr geehrtes Mitglied,\nwir freuen uns, Ihnen mitzuteilen …\n"
+                     + String(repeating: "Text des Schreibens. ", count: 10),
                      margin: "")
         }
-        let statement = PageText(body: "Dividendenabrechnung\nGeschäftsguthaben am Berechnungsstichtag", margin: "")
+        let statement = PageText(body: "Dividendenabrechnung\nGeschäftsguthaben am Berechnungsstichtag\n"
+                                 + String(repeating: "Position Betrag EUR 12,34\n", count: 8), margin: "")
         let pages = [letter(2001), statement, letter(2000), statement, letter(1999)]
         let result = DocumentBoundaryDetector.split(pages)
         XCTAssertEqual(result.documents, [[0, 1], [2, 3], [4]])
@@ -76,6 +78,28 @@ final class DocumentBoundaryTests: XCTestCase {
         // „Guten Tag Frau …“ zählt ebenso, eine bloße Erwähnung „sehr geehrt“ ohne Anschrift nicht.
         XCTAssertTrue(DocumentBoundaryDetector.isHead("10115 Berlin\nGuten Tag Frau Muster,"))
         XCTAssertFalse(DocumentBoundaryDetector.isHead("Sehr geehrtes Mitglied, ohne Anschrift"))
+    }
+
+    /// Handschriftliche Notiz zwischen zwei Briefen wird ein eigenes Dokument, eine Unterschriftsseite nicht.
+    func testShortNoteIsOwnDocument() {
+        let letter = PageText(body: "Beispiel eG, Postfach 1234, 24103 Kiel\nMax Mustermann\n24103 Kiel\n"
+                              + "Sehr geehrtes Mitglied,\n" + String(repeating: "Text des Schreibens. ", count: 20),
+                              margin: "")
+        let attachment = PageText(body: String(repeating: "Erläuterungen zur Abrechnung. ", count: 20), margin: "")
+        let note = PageText(body: "Übergabe\nder\nAnteile\nan Max\nWeihnachten 2004", margin: "")
+        let signature = PageText(body: "Mit freundlichen Grüßen\nBeispiel eG\nVorstand", margin: "")
+
+        let pages = [letter, attachment, note, letter, signature]
+        let result = DocumentBoundaryDetector.split(pages)
+        XCTAssertEqual(result.documents, [[0, 1], [2], [3, 4]])
+        XCTAssertEqual(result.reasons, [.firstPage, .shortNote, .letterHead])
+
+        // Nach der Notiz beginnt auch ohne Briefkopf ein neues Dokument.
+        let noteThenText = DocumentBoundaryDetector.split([attachment, note, attachment])
+        XCTAssertEqual(noteThenText.documents, [[0], [1], [2]])
+
+        // Das Original kennt die Regel nicht.
+        XCTAssertEqual(DocumentBoundaryDetector.split(pages, options: .original).documents, [[0, 1, 2], [3, 4]])
     }
 
     func testInsertIsSplitOutWithoutReordering() {

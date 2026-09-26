@@ -41,6 +41,8 @@ public enum DocumentBoundaryDetector {
         case previousWasLast(Int, Int)
         case identifierChanged
         case letterHead
+        case shortNote
+        case afterShortNote
         case insert
 
         public var description: String {
@@ -50,6 +52,8 @@ public enum DocumentBoundaryDetector {
             case .previousWasLast(let current, let total): return "Vorseite \(current)/\(total) war Schluss"
             case .identifierChanged: return "Kennung wechselt"
             case .letterHead: return "Anschrift + Anrede"
+            case .shortNote: return "kurzer Einzelzettel"
+            case .afterShortNote: return "nach Einzelzettel"
             case .insert: return "Einschub ohne Zähler"
             }
         }
@@ -98,10 +102,23 @@ public enum DocumentBoundaryDetector {
 
     // MARK: - Einstieg
 
-    public static func split(_ pages: [PageText]) -> Result {
+    /// Erweiterungen gegenüber reference/split_docs.py (für den Abgleich mit dem Original abschaltbar).
+    public struct Options: Sendable {
+        /// Seiten mit sehr wenig Text (handschriftliche Notiz, Zettel) sind eigene Dokumente.
+        public var shortNotes = true
+
+        public init(shortNotes: Bool = true) {
+            self.shortNotes = shortNotes
+        }
+
+        /// Genau die Regeln des Python-Originals.
+        public static let original = Options(shortNotes: false)
+    }
+
+    public static func split(_ pages: [PageText], options: Options = Options()) -> Result {
         guard !pages.isEmpty else { return Result(starts: [], pageNumbers: [], documents: [], reasons: []) }
         let texts = pages.map { squeeze($0.body) }
-        let (starts, numbers) = findStarts(texts, margins: pages.map(\.margin))
+        let (starts, numbers) = findStarts(texts, margins: pages.map(\.margin), options: options)
         let bounds = starts.map(\.page) + [pages.count]
         var documents: [([Int], Reason)] = []
         for k in starts.indices {
@@ -190,12 +207,22 @@ public enum DocumentBoundaryDetector {
         return nil
     }
 
+    /// Handschriftliche Notiz, Zettel, Deckblatt mit wenigen Worten: unter 150 Zeichen Text
+    /// (ohne Leerraum) und kein Briefschluss (Grußformel, Unterschrift) – der gehört zum Brief davor.
+    static let closing = Rx(#"Gr[üu](?:ß|ss)|Hochachtungsvoll|\bi\.\s?[AV]\.|Unterschrift"#, [.caseInsensitive])
+
+    static func isShortNote(_ text: String) -> Bool {
+        let characters = text.unicodeScalars.filter { !CharacterSet.whitespacesAndNewlines.contains($0) }.count
+        return (10..<150).contains(characters) && !closing.matches(text)
+    }
+
     static func isHead(_ text: String) -> Bool {
         let h = head(text, 1400)
         return salut.matches(h) && addr.matches(h)
     }
 
-    static func findStarts(_ pages: [String], margins: [String]) -> ([Start], [PageNumber?]) {
+    static func findStarts(_ pages: [String], margins: [String],
+                           options: Options = .original) -> ([Start], [PageNumber?]) {
         let toks = tokenSets(margins)
         let blacklist = slashBlacklist(pages)
         var nums = pages.map { pageNumber($0, skip: blacklist) }
@@ -224,6 +251,10 @@ public enum DocumentBoundaryDetector {
                 reason = .identifierChanged
             } else if isHead(pages[i]), !conts[i - 1] {
                 reason = .letterHead
+            } else if options.shortNotes, n == nil, !conts[i - 1], isShortNote(pages[i]) {
+                reason = .shortNote
+            } else if options.shortNotes, pn == nil, isShortNote(pages[i - 1]) {
+                reason = .afterShortNote
             }
 
             if !toks[i].isEmpty { lastTok = toks[i] }

@@ -95,6 +95,9 @@ Unterschiede zum Skript:
   und als Randtext zählt alles, was vollständig in der 30-pt-Zone liegt.
 - Senkrecht gedruckte Randtexte liest die App zusätzlich aus ausgeschnittenen und gedrehten Randstreifen.
 - Die Postleitzahl-Regel für die Anschrift erkennt auch Orte mit Umlaut (Ö…, Ü…).
+- Zusätzliche Regel **„kurzer Einzelzettel“**: Eine Seite mit weniger als 150 Zeichen Text, z. B. eine
+  handschriftliche Notiz, wird ein eigenes Dokument, sofern sie nicht nach Briefschluss aussieht (Grußformel,
+  Unterschrift). Die Seite danach beginnt ebenfalls neu. Der Paritätstest läuft ohne diese Regel.
 - Die Anrede-Regel erkennt jede Anrede „Sehr geehrte… <Wort>“ und „Guten Tag …“. Das Original kennt nur Herr, Frau
   und Damen, damit wären z. B. Genossenschaftsbriefe mit „Sehr geehrtes Mitglied“ nie getrennt worden.
 - Leerseiten werden vor dem Trennen herausgenommen. Sonst würden Duplex-Rückseiten als Einschübe gelten.
