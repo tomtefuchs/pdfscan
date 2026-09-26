@@ -55,6 +55,8 @@ struct PDFScanApp: App {
                 Button("Automatisch in Dokumente trennen") { model.autoSplit() }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
                     .disabled(model.pages.isEmpty)
+                Button("Trenn-Diagnose exportieren…") { model.exportSplitDiagnostics() }
+                    .disabled(model.pages.isEmpty)
             }
         }
 

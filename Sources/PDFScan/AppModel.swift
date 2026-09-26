@@ -519,6 +519,50 @@ final class AppModel: ObservableObject {
         return .folder(url)
     }
 
+    /// Exportiert, was die Trennlogik pro Seite gesehen hat (Volltext, Randtext, Zähler, Trennung).
+    /// Damit lässt sich die Trennung außerhalb der App nachvollziehen, z. B. mit reference/split_docs.py.
+    func exportSplitDiagnostics() {
+        struct Entry: Encodable {
+            var page: Int
+            var source: String?
+            var excluded: Bool
+            var blank: Bool
+            var startsDocument: Bool
+            var reason: String?
+            var detectedCounter: String?
+            var body: String
+            var margin: String
+        }
+        let included = pages.indices.filter { !pages[$0].excluded }
+        let result = DocumentBoundaryDetector.split(included.map { pages[$0].pageText ?? PageText(body: "", margin: "") })
+        var counters: [Int: String] = [:]
+        for (local, index) in included.enumerated() {
+            if let n = result.pageNumbers[local] {
+                counters[index] = n.total.map { "\(n.current)/\($0)" } ?? "Seite \(n.current)"
+            }
+        }
+        let entries = pages.enumerated().map { index, page in
+            Entry(page: index + 1, source: page.sourceName, excluded: page.excluded, blank: page.isBlank,
+                  startsDocument: page.startsDocument || index == 0, reason: page.splitReason,
+                  detectedCounter: counters[index],
+                  body: page.pageText?.body ?? "", margin: page.pageText?.margin ?? "")
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "Trenn-Diagnose exportieren"
+        panel.nameFieldStringValue = "Trenn-Diagnose.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+            try encoder.encode(entries).write(to: url)
+            status = "Trenn-Diagnose gespeichert: \(url.lastPathComponent)"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func showScannerInfo() {
         let text = scanner.diagnostics()
         let alert = NSAlert()
