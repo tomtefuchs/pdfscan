@@ -19,7 +19,8 @@ public struct PDFPageSource {
 /// Schreibt ein durchsuchbares PDF: sichtbar ist der Scan, darüber liegt unsichtbarer Text
 /// an den Positionen, an denen Vision ihn erkannt hat (Suche, Markieren, Kopieren, Spotlight).
 public enum SearchablePDFWriter {
-    public static func write(_ pages: [PDFPageSource], to url: URL, title: String? = nil, jpegQuality: Double = 0.7) throws {
+    public static func write(_ pages: [PDFPageSource], to url: URL, title: String? = nil,
+                             profile: PDFImageProfile = .balanced) throws {
         guard !pages.isEmpty else { throw PDFScanError.noPages }
         var info: [CFString: Any] = [kCGPDFContextCreator: "PDFScan"]
         if let title { info[kCGPDFContextTitle] = title }
@@ -29,7 +30,7 @@ public enum SearchablePDFWriter {
         do {
             for page in pages {
                 try autoreleasepool {
-                    try draw(page, into: ctx, jpegQuality: jpegQuality)
+                    try draw(page, into: ctx, profile: profile)
                 }
             }
             ctx.closePDF()
@@ -40,12 +41,13 @@ public enum SearchablePDFWriter {
         }
     }
 
-    static func draw(_ page: PDFPageSource, into ctx: CGContext, jpegQuality: Double) throws {
+    static func draw(_ page: PDFPageSource, into ctx: CGContext, profile: PDFImageProfile) throws {
         guard let image = ImageOps.loadImage(at: page.imageURL) else {
             throw PDFScanError.unreadableImage(page.imageURL)
         }
         // Ein direkt aus JPEG-Daten erzeugtes CGImage bettet Quartz ohne Neukodierung (DCT) ein – kleine PDFs.
-        guard let jpeg = ImageOps.jpegData(image, quality: jpegQuality, dpi: page.dpi),
+        let prepared = profile.prepare(image, dpi: page.dpi)
+        guard let jpeg = ImageOps.jpegData(prepared, quality: profile.jpegQuality, dpi: page.dpi),
               let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
               let embedded = CGImageSourceCreateImageAtIndex(source, 0, nil)
         else { throw PDFScanError.unreadableImage(page.imageURL) }

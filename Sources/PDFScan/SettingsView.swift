@@ -8,7 +8,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.duplex) private var duplex = true
     @AppStorage(SettingsKey.autoRotate) private var autoRotate = true
     @AppStorage(SettingsKey.skipBlankPages) private var skipBlankPages = true
-    @AppStorage(SettingsKey.jpegQuality) private var jpegQuality = 0.7
+    @AppStorage(SettingsKey.fileSize) private var fileSize = FileSizeOption.compact
     @AppStorage(SettingsKey.languages) private var languages = "de-DE,en-US"
     @AppStorage(SettingsKey.outputFolder) private var outputFolder = AppSettings.defaultOutputFolder
     @AppStorage(SettingsKey.filePrefix) private var filePrefix = "Scan_"
@@ -48,14 +48,12 @@ struct SettingsView: View {
                 Toggle("Leerseiten automatisch weglassen", isOn: $skipBlankPages)
                 Toggle("Automatisch in einzelne Dokumente trennen", isOn: $autoSplit)
                     .help("Zähler (1/3, Seite 1), Vorgangskennungen im Blattrand, Anschrift mit Anrede")
-                LabeledContent("JPEG-Qualität") {
-                    HStack {
-                        Slider(value: $jpegQuality, in: 0.3...0.95, step: 0.05)
-                        Text("\(Int(jpegQuality * 100)) %")
-                            .monospacedDigit()
-                            .frame(width: 44, alignment: .trailing)
+                Picker("Dateigröße", selection: $fileSize) {
+                    ForEach(FileSizeOption.allCases) { option in
+                        Text(option.label).tag(option)
                     }
                 }
+                .help("Kompakt: Seiten ohne Farbe in Graustufen, 200 dpi, vergilbtes Papier aufgehellt. Die Texterkennung nutzt immer den vollen Scan.")
             }
 
             Section("Speichern") {

@@ -7,7 +7,7 @@ enum SettingsKey {
     static let duplex = "duplex"
     static let autoRotate = "autoRotate"
     static let skipBlankPages = "skipBlankPages"
-    static let jpegQuality = "jpegQuality"
+    static let fileSize = "fileSize"
     static let languages = "languages"
     static let outputFolder = "outputFolder"
     static let filePrefix = "filePrefix"
@@ -23,7 +23,7 @@ struct AppSettings {
     var duplex: Bool
     var autoRotate: Bool
     var skipBlankPages: Bool
-    var jpegQuality: Double
+    var fileSize: FileSizeOption
     var languages: [String]
     var outputFolder: URL
     var filePrefix: String
@@ -52,7 +52,7 @@ struct AppSettings {
             SettingsKey.duplex: true,
             SettingsKey.autoRotate: true,
             SettingsKey.skipBlankPages: true,
-            SettingsKey.jpegQuality: 0.7,
+            SettingsKey.fileSize: FileSizeOption.compact.rawValue,
             SettingsKey.languages: "de-DE,en-US",
             SettingsKey.outputFolder: defaultOutputFolder,
             SettingsKey.filePrefix: "Scan_",
@@ -70,7 +70,7 @@ struct AppSettings {
             duplex: d.bool(forKey: SettingsKey.duplex),
             autoRotate: d.bool(forKey: SettingsKey.autoRotate),
             skipBlankPages: d.bool(forKey: SettingsKey.skipBlankPages),
-            jpegQuality: d.double(forKey: SettingsKey.jpegQuality),
+            fileSize: FileSizeOption(rawValue: d.string(forKey: SettingsKey.fileSize) ?? "") ?? .compact,
             languages: (d.string(forKey: SettingsKey.languages) ?? "")
                 .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
             outputFolder: URL(fileURLWithPath: d.string(forKey: SettingsKey.outputFolder) ?? defaultOutputFolder,
@@ -80,5 +80,28 @@ struct AppSettings {
             autoSplit: d.bool(forKey: SettingsKey.autoSplit),
             paperFormat: PaperFormat(rawValue: d.string(forKey: SettingsKey.paperFormat) ?? "") ?? .auto
         )
+    }
+}
+
+/// Stufen für die Dateigröße der gespeicherten PDFs.
+enum FileSizeOption: String, CaseIterable, Identifiable {
+    case compact, balanced, original
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .compact: return "Kompakt (ca. 100–250 KB pro Seite)"
+        case .balanced: return "Ausgewogen (ca. 300–600 KB pro Seite)"
+        case .original: return "Originalqualität (ca. 1–2 MB pro Seite)"
+        }
+    }
+
+    var profile: PDFImageProfile {
+        switch self {
+        case .compact: return .compact
+        case .balanced: return .balanced
+        case .original: return .original
+        }
     }
 }

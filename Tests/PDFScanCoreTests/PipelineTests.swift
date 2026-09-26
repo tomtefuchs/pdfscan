@@ -101,7 +101,7 @@ final class PipelineTests: XCTestCase {
         let pdfURL = temporaryURL("pdf")
         let pages = [PDFPageSource(imageURL: imageURL, dpi: 200, lines: lines),
                      PDFPageSource(imageURL: imageURL, dpi: 200, lines: lines)]
-        try SearchablePDFWriter.write(pages, to: pdfURL, title: "Test", jpegQuality: 0.7)
+        try SearchablePDFWriter.write(pages, to: pdfURL, title: "Test")
 
         let document = try XCTUnwrap(PDFDocument(url: pdfURL))
         XCTAssertEqual(document.pageCount, 2)

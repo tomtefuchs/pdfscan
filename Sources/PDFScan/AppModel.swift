@@ -427,7 +427,7 @@ final class AppModel: ObservableObject {
                     let temporary = workDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("pdf")
                     temporaries.append(temporary)
                     let title = sources[index] ?? "Scan \(Self.titleFormatter.string(from: now))"
-                    try SearchablePDFWriter.write(pages, to: temporary, title: title, jpegQuality: settings.jpegQuality)
+                    try SearchablePDFWriter.write(pages, to: temporary, title: title, profile: settings.fileSize.profile)
                 }
                 // Erst wenn alle PDFs fertig sind, mit einer freien Batch-Nummer in den Zielordner verschieben.
                 func exists(_ name: String, in folder: URL) -> Bool {

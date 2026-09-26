@@ -22,7 +22,9 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
 - Seiten **sortieren** (Drag & Drop), **drehen**, **löschen**, erkannten Text in der Vorschau prüfen.
 - **Import** von Bildern (JPEG/PNG/TIFF/HEIC, auch mehrseitige TIFFs) und **bestehenden PDFs**, etwa alten Scans
   ohne Texterkennung oder Dateien aus Epson ScanSmart/FastFoto. Man kann sie auch einfach ins Fenster ziehen.
-- Kompakte PDFs: Die Seiten werden als JPEG eingebettet (Qualität einstellbar), Seitengröße aus der Scan-Auflösung.
+- **Kompakte PDFs** (Einstellung „Dateigröße“, Standard „Kompakt“, etwa 100–250 KB pro A4-Seite): Seiten ohne
+  echte Farbe werden in Graustufen gespeichert, vergilbtes Papier wird aufgehellt, das Bild im PDF hat 200 dpi.
+  Farbige Stempel, Unterschriften und Fotos bleiben farbig. Die Texterkennung nutzt immer den vollen Scan.
 
 ## Dateinamen
 
