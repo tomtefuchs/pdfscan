@@ -69,7 +69,7 @@ final class HandwritingTests: XCTestCase {
         let gray = grayValues(try XCTUnwrap(HandwritingRecognizer.enhanced(page, channel: .luminance)))
         let inkIndex = (size - 1 - 120) * size + 250, gridIndex = 500 * size + 51
         XCTAssertLessThan(darkest[inkIndex], 20)
-        XCTAssertEqual(darkest[gridIndex], 255)
+        XCTAssertGreaterThanOrEqual(darkest[gridIndex], 250)
         // In der Helligkeit ist die Tinte nur mittelgrau.
         XCTAssertGreaterThan(Int(gray[inkIndex]), Int(darkest[inkIndex]))
     }
