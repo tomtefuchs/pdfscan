@@ -29,13 +29,17 @@ enum OCRComparison {
                 let ink = BlankPageDetector.inkCoverage(page)
                 let normal = (try? TextRecognizer.recognize(page, languages: languages)) ?? []
                 print("Sieht nach Handschrift aus: "
-                      + (HandwritingRecognizer.looksHandwritten(lines: normal, inkCoverage: ink) ? "ja" : "nein")
+                      + (HandwritingRecognizer.looksHandwritten(lines: normal, inkCoverage: ink, languages: languages)
+                         ? "ja" : "nein")
                       + String(format: " (Tinte %.1f %%)", ink * 100))
                 for variant in HandwritingRecognizer.variants(page, languages: languages) {
                     let characters = variant.lines.reduce(0) { $0 + $1.text.filter { !$0.isWhitespace }.count }
                     let confidence = variant.lines.isEmpty ? 0
                         : variant.lines.reduce(0.0) { $0 + Double($1.confidence) } / Double(variant.lines.count)
+                    let spelling = Spelling.count(variant.lines.map(\.text).joined(separator: " "),
+                                                  languages: languages)
                     print("\n=== \(variant.name): \(variant.lines.count) Zeilen, \(characters) Zeichen, "
+                          + "\(spelling.knownWords) von \(spelling.words) Wörtern im Wörterbuch, "
                           + String(format: "Konfidenz Ø %.2f", confidence))
                     for line in variant.lines {
                         print(String(format: "  [%.2f] ", line.confidence) + line.text)

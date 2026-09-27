@@ -46,23 +46,28 @@ public enum HandwritingRecognizer {
         switch mode {
         case .off: needsPass = false
         case .always: needsPass = true
-        case .auto: needsPass = looksHandwritten(lines: printed, inkCoverage: BlankPageDetector.inkCoverage(image))
+        case .auto: needsPass = looksHandwritten(lines: printed, inkCoverage: BlankPageDetector.inkCoverage(image),
+                                                 languages: languages)
         }
         guard needsPass else {
             return PageRecognition(lines: printed, handwritingPass: false, handwritingImproved: false)
         }
         let handwritten = (try? recognize(image, languages: languages)) ?? []
-        let merged = merge(printed, handwritten)
+        let merged = merge(printed, handwritten, languages: languages)
         return PageRecognition(lines: merged, handwritingPass: true, handwritingImproved: merged != printed)
     }
 
-    /// Der eigentliche Handschrift-Durchgang: kontrastverstärktes Bild, einmal ganz und einmal in
-    /// überlappenden Streifen (Vision liest kleine Schrift in Ausschnitten deutlich genauer).
+    /// Der eigentliche Handschrift-Durchgang: drei Lesarten des kontrastverstärkten Bildes – Graustufen,
+    /// dunkelster Farbkanal und dunkelster Farbkanal in überlappenden Streifen. Jede liest andere Zeilen gut;
+    /// pro Zeile gewinnt die Lesart mit den meisten echten Wörtern.
     public static func recognize(_ image: CGImage, languages: [String]) throws -> [RecognizedLine] {
-        let prepared = enhanced(image) ?? image
-        let whole = try TextRecognizer.recognize(prepared, languages: languages, languageCorrection: true)
-        let strips = try recognizeInStrips(prepared, languages: languages)
-        return merge(whole, strips)
+        let gray = enhanced(image, channel: .luminance) ?? image
+        let darkest = enhanced(image) ?? image
+        let fromGray = try TextRecognizer.recognize(gray, languages: languages, languageCorrection: true)
+        let fromDarkest = try TextRecognizer.recognize(darkest, languages: languages, languageCorrection: true)
+        let fromStrips = try recognizeInStrips(darkest, languages: languages)
+        let merged = merge(fromGray, fromDarkest, languages: languages)
+        return merge(merged, fromStrips, languages: languages)
     }
 
     /// Texterkennung in waagerechten Streifen mit Überlappung, Boxen auf die ganze Seite umgerechnet.
@@ -89,7 +94,7 @@ public enum HandwritingRecognizer {
                 return mapped
             }
         }
-        return merge([], result)
+        return merge([], result, languages: languages)
     }
 
     /// Alle Varianten einzeln – für den Vergleich auf echten Scans (`PDFScan --ocr-vergleich <Datei>`).
@@ -112,21 +117,26 @@ public enum HandwritingRecognizer {
     /// Sieht die Seite nach Handschrift aus? Grobe Faustregel, bewusst großzügig –
     /// ein unnötiger zweiter Durchgang kostet nur Zeit, das Zusammenführen behält das bessere Ergebnis.
     /// - Tinte, aber kaum erkannter Text (Notizzettel, Randvermerke)
-    /// - unsichere Erkennung (Vision meldet bei Handschrift niedrige Konfidenzen)
+    /// - wenige echte Wörter (Druck: fast alle Wörter stehen im Wörterbuch, gelesene Handschrift: oft unter der Hälfte)
+    /// - unsichere Erkennung (bei Handschrift meldet Vision allerdings oft trotzdem 1,0)
     /// - viel Tinte pro erkanntem Zeichen (Handschrift ist groß und wird nur teilweise gelesen)
-    public static func looksHandwritten(lines: [RecognizedLine], inkCoverage: Double) -> Bool {
+    public static func looksHandwritten(lines: [RecognizedLine], inkCoverage: Double,
+                                        languages: [String] = ["de-DE", "en-US"]) -> Bool {
         guard inkCoverage >= 0.003 else { return false }
         let characters = lines.reduce(0) { $0 + $1.text.count }
         if characters < 20 { return true }
+        let spelling = Spelling.count(lines.map(\.text).joined(separator: " "), languages: languages)
+        if spelling.words >= 8, spelling.knownFraction < 0.7 { return true }
         let confidence = lines.reduce(0.0) { $0 + Double($1.confidence) * Double($1.text.count) } / Double(characters)
         if confidence < 0.6 { return true }
         return inkCoverage / Double(characters) > 1.5e-4
     }
 
-    /// Führt die Zeilen beider Durchgänge zusammen. Überlappen sich Zeilen, gewinnt die Seite mit mehr
-    /// sicher erkannten Zeichen; neue Zeilen aus dem Handschrift-Durchgang kommen dazu.
+    /// Führt die Zeilen zweier Lesarten zusammen. Überlappen sich Zeilen, gewinnt die mit mehr Buchstaben in
+    /// echten Wörtern (siehe `score`); neue Zeilen kommen dazu.
     /// Ergebnis in Lesereihenfolge (oben nach unten, links nach rechts).
-    public static func merge(_ base: [RecognizedLine], _ extra: [RecognizedLine]) -> [RecognizedLine] {
+    public static func merge(_ base: [RecognizedLine], _ extra: [RecognizedLine],
+                             languages: [String] = ["de-DE", "en-US"]) -> [RecognizedLine] {
         var result = base
         for line in extra {
             let overlapping = result.indices.filter { overlaps(result[$0].box, line.box) }
@@ -134,8 +144,8 @@ public enum HandwritingRecognizer {
                 result.append(line)
                 continue
             }
-            let existing = overlapping.reduce(0.0) { $0 + score(result[$1]) }
-            if score(line) > existing * 1.1 {
+            let existing = overlapping.reduce(0.0) { $0 + score(result[$1], languages: languages) }
+            if score(line, languages: languages) > existing * 1.1 {
                 for index in overlapping.reversed() { result.remove(at: index) }
                 result.append(line)
             }
@@ -148,8 +158,12 @@ public enum HandwritingRecognizer {
         }
     }
 
-    static func score(_ line: RecognizedLine) -> Double {
-        Double(line.text.filter { !$0.isWhitespace }.count) * Double(line.confidence)
+    /// Buchstaben in echten Wörtern zählen voll, der Rest (Zahlen, Kürzel, Unsinn) zu 30 %; dazu leicht die Konfidenz.
+    /// Ohne Wörterbuch-Bewertung gewänne einfach die längere Zeile – bei Handschrift oft die mit mehr Unsinn.
+    static func score(_ line: RecognizedLine, languages: [String]) -> Double {
+        let visible = line.text.filter { !$0.isWhitespace }.count
+        let known = Spelling.count(line.text, languages: languages).known
+        return (Double(known) + 0.3 * Double(visible - known)) * (0.5 + 0.5 * Double(line.confidence))
     }
 
     /// Mindestens die Hälfte der kleineren Box liegt in der anderen.

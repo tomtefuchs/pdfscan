@@ -98,7 +98,7 @@ final class HandwritingTests: XCTestCase {
         // Tinte, aber kein Text.
         XCTAssertTrue(HandwritingRecognizer.looksHandwritten(lines: [], inkCoverage: 0.02))
         // Normaler Brief: viel sicherer Text.
-        let letter = (0..<30).map { line(String(repeating: "Druckschrift ", count: 5), 0.1, 0.9 - Double($0) * 0.025, 0.8) }
+        let letter = (0..<30).map { line(String(repeating: "Rechnung für die Lieferung ", count: 2), 0.1, 0.9 - Double($0) * 0.025, 0.8) }
         XCTAssertFalse(HandwritingRecognizer.looksHandwritten(lines: letter, inkCoverage: 0.05))
         // Unsichere Erkennung.
         let unsure = letter.map { var l = $0; l.confidence = 0.3; return l }
@@ -121,6 +121,29 @@ final class HandwritingTests: XCTestCase {
         let merged = HandwritingRecognizer.merge(base, extra)
         XCTAssertEqual(merged.map(\.text), ["Rechnung Nr. 4711", "Lieber Hans, danke", "bis Sonntag!"])
         XCTAssertEqual(merged[0].confidence, 1)
+    }
+
+    func testSpellingSeparatesWordsFromGarble() {
+        let good = Spelling.count("Bitte überweisen Sie den Betrag auf das angegebene Konto", languages: ["de-DE"])
+        XCTAssertGreaterThan(good.knownFraction, 0.8, "\(good)")
+        let garbled = Spelling.count("Sevezhet Mette Dysklklic Wedelte Ulane negehr Rüchmlo hlanen", languages: ["de-DE"])
+        XCTAssertLessThan(garbled.knownFraction, 0.4, "\(garbled)")
+    }
+
+    func testGarbledLinesCountAsHandwritingEvenWithFullConfidence() {
+        // Echte Vision-Ausgabe für eine handschriftliche Seite: alles mit Konfidenz 1,0.
+        let texts = ["viel Unruhe", "Seule: Sevezhet Mette + KA. Dysklklic?", "= Wedelte du Ulane",
+                     "→ negehr Rüchmlo dann luz vor de", "Softe hlanen", "→ trissbillyg zu dem Zegnis",
+                     "- Brif übezelrn a îbdir fo den Dif", "+ Gepral has de Felin m.d kL hit stettefi"]
+        let lines = texts.enumerated().map { line($1, 0.1, 0.9 - Double($0) * 0.05, 0.7) }
+        XCTAssertTrue(HandwritingRecognizer.looksHandwritten(lines: lines, inkCoverage: 0.001 + 0.04))
+    }
+
+    func testMergePrefersRealWordsOverLongerGarble() {
+        let garble = line("Konse: o Essencei? → serme asert....", 0.1, 0.5, 0.6)
+        let words = line("Sonst sieht sie zurück", 0.1, 0.5, 0.55)
+        XCTAssertEqual(HandwritingRecognizer.merge([garble], [words]).map(\.text), ["Sonst sieht sie zurück"])
+        XCTAssertEqual(HandwritingRecognizer.merge([words], [garble]).map(\.text), ["Sonst sieht sie zurück"])
     }
 
     func testMergeSortsReadingOrder() {
