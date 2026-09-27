@@ -33,10 +33,10 @@ public struct PageRecognition: Sendable {
 
 /// Handschrift mit Vision – komplett lokal.
 ///
-/// Vision liest Handschrift nur im Modus „accurate“, und bei blasser oder farbiger Tinte deutlich schlechter
-/// als Druckschrift: Vision arbeitet mit der Helligkeit, und darin ist blaue Tinte nur hellgrau.
-/// Der Handschrift-Durchgang erkennt deshalb ein kontrastverstärktes Bild aus dem dunkelsten Farbkanal
-/// (Tinte → Schwarz, Papier und Karoraster → Weiß), ganz und in Streifen, und übernimmt pro Zeile das bessere Ergebnis.
+/// Vision liest Handschrift nur im Modus „accurate“, und bei blasser oder farbiger Tinte schlechter
+/// als Druckschrift. Der Handschrift-Durchgang erkennt deshalb ein kontrastverstärktes Bild aus dem dunkelsten
+/// Farbkanal (Tinte → Schwarz, Papier und Karoraster → Weiß), ganz und in Streifen, und übernimmt pro Zeile
+/// das bessere Ergebnis. Flüchtige Schreibschrift liest Vision trotzdem nur teilweise.
 /// Deutsche Schreibschrift der letzten Jahrzehnte klappt oft, Kurrent und Sütterlin kann Vision nicht lesen.
 public enum HandwritingRecognizer {
     /// Normale Texterkennung, bei Bedarf gefolgt vom Handschrift-Durchgang.
