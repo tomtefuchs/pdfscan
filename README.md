@@ -16,7 +16,8 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
   Häkchen wieder aufnehmen.
 - **Automatisch in einzelne Dokumente trennen** mit der Logik aus `reference/split_docs.py`: Zähler
   („1/3“, „Seite 1“, senkrechter Randblock), Vorgangskennungen im Blattrand, Anschrift mit Anrede. Der Grund
-  steht an jeder Trennlinie. Mit ⌘T setzt oder entfernt man Trennstellen von Hand, mit ⇧⌘T berechnet man sie neu.
+  steht an jeder Trennlinie. Mit ⌘T setzt oder entfernt man Trennstellen von Hand, mit ⇧⌘T berechnet man sie neu, mit ⌥⌘T
+  entfernt man alle auf einmal.
 - **Einheitliche Dateinamen**: `<Präfix><Jahr>_<Monat>_<Tag>_<Batch>_<Dokument>.pdf`, z. B.
   `Scan_2026_09_25_003_01.pdf`. Details siehe unten.
 - Seiten **sortieren** (Drag & Drop), **drehen**, **löschen**, erkannten Text in der Vorschau prüfen.

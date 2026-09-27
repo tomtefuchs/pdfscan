@@ -38,6 +38,15 @@ struct PageListView: View {
                     }
                     .help("Automatisch in Dokumente trennen (⇧⌘T) – überschreibt manuelle Trennstellen")
                     .disabled(model.pages.isEmpty)
+                    Button {
+                        model.clearDocumentMarkers()
+                    } label: {
+                        Image(systemName: "arrow.triangle.merge")
+                            .font(.system(size: Theme.iconSize, weight: .medium))
+                            .frame(width: 22, height: 22)
+                    }
+                    .help("Alle Trennstellen entfernen – alles wird ein Dokument (⌥⌘T)")
+                    .disabled(!model.hasDocumentMarkers)
                     Spacer()
                     Button {
                         model.save()

@@ -202,6 +202,22 @@ final class AppModel: ObservableObject {
         markersEditedManually = true
     }
 
+    var hasDocumentMarkers: Bool {
+        pages.dropFirst().contains { $0.startsDocument }
+    }
+
+    /// Alle Trennstellen entfernen – der Stapel wird wieder ein einziges Dokument.
+    /// Gilt als manuelle Änderung, damit die automatische Trennung sie nicht ungefragt zurücksetzt.
+    func clearDocumentMarkers() {
+        guard hasDocumentMarkers else { return }
+        for index in pages.indices {
+            pages[index].startsDocument = false
+            pages[index].splitReason = nil
+        }
+        markersEditedManually = true
+        status = "Alle Trennstellen entfernt – ein Dokument"
+    }
+
     // MARK: - Automatisch trennen
 
     /// Nach Scan oder Import: sobald die Texterkennung fertig ist, automatisch trennen (sofern
