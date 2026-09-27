@@ -70,14 +70,14 @@ public final class ProfileStore: ObservableObject {
     public init(defaults: UserDefaults = .standard, keys: [String], defaultName: String = "Standard") {
         self.defaults = defaults
         self.keys = keys
+        var loaded = [Profile(name: defaultName, values: [:])]
         if let data = defaults.data(forKey: Self.listKey),
            let stored = try? JSONDecoder().decode([Profile].self, from: data), !stored.isEmpty {
-            profiles = stored
-        } else {
-            profiles = [Profile(name: defaultName, values: [:])]
+            loaded = stored
         }
         let storedActive = defaults.string(forKey: Self.activeKey).flatMap(UUID.init(uuidString:))
-        activeID = profiles.first { $0.id == storedActive }?.id ?? profiles[0].id
+        activeID = loaded.first { $0.id == storedActive }?.id ?? loaded[0].id
+        profiles = loaded
         if profiles.count == 1, profiles[0].values.isEmpty {
             captureActive()          // erstes Profil aus den bisherigen Einstellungen
         } else {
