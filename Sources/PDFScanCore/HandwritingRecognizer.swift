@@ -118,15 +118,19 @@ public enum HandwritingRecognizer {
         guard let ctx = ImageOps.makeContext(width: image.width, height: image.height, gray: true) else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         guard let data = ctx.data else { return nil }
-        let count = ctx.bytesPerRow * image.height
+        let width = image.width, height = image.height, bytesPerRow = ctx.bytesPerRow
+        let count = bytesPerRow * height
         let pixels = data.bindMemory(to: UInt8.self, capacity: count)
 
+        // Nur echte Pixel zählen – die Füllbytes am Zeilenende sind 0 und würden als Tinte gelten.
         var histogram = [Int](repeating: 0, count: 256)
-        let step = max(1, count / 400_000)
+        let step = max(1, Int((Double(width * height) / 400_000).squareRoot()))
         var sampled = 0
-        for i in stride(from: 0, to: count, by: step) {
-            histogram[Int(pixels[i])] += 1
-            sampled += 1
+        for y in stride(from: 0, to: height, by: step) {
+            for x in stride(from: 0, to: width, by: step) {
+                histogram[Int(pixels[y * bytesPerRow + x])] += 1
+                sampled += 1
+            }
         }
         let paper = percentile(histogram, total: sampled, 0.5)
         let ink = percentile(histogram, total: sampled, 0.001)
