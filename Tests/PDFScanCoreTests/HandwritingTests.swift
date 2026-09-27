@@ -33,8 +33,10 @@ final class HandwritingTests: XCTestCase {
     private func grayValues(_ image: CGImage) -> [UInt8] {
         let ctx = ImageOps.makeContext(width: image.width, height: image.height, gray: true)!
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        let count = ctx.bytesPerRow * image.height
-        return Array(UnsafeBufferPointer(start: ctx.data!.bindMemory(to: UInt8.self, capacity: count), count: count))
+        let bytesPerRow = ctx.bytesPerRow
+        let pixels = ctx.data!.bindMemory(to: UInt8.self, capacity: bytesPerRow * image.height)
+        // Nur echte Pixel, ohne das Füllmaterial am Zeilenende.
+        return (0..<image.height).flatMap { y in (0..<image.width).map { pixels[y * bytesPerRow + $0] } }
     }
 
     func testEnhancementWhitensPaperAndDarkensFaintInk() throws {
