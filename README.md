@@ -11,6 +11,11 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
 - **Stapelmodus**: „Nach jedem Scan automatisch speichern“ macht aus jedem Einzug ein eigenes PDF.
 - **OCR** mit Vision (Deutsch, Englisch, Französisch, Italienisch, Spanisch). Der Text liegt unsichtbar über dem Scan.
   Man kann ihn also suchen, markieren und kopieren, und Spotlight findet ihn.
+- **Handschrift** (Einstellung „Handschrift“, Standard „Automatisch“): Sieht eine Seite nach Handschrift aus
+  (viel Tinte, aber wenig oder unsicher erkannter Text), läuft ein zweiter Durchgang auf einem
+  kontrastverstärkten Bild. Das Papier wird weiß, blasse Tinte und Bleistift werden kräftig. Pro Zeile gewinnt
+  das bessere Ergebnis. Solche Seiten tragen in der Liste den Hinweis „Handschrift“. Über das Kontextmenü oder
+  die Symbolleiste erzwingt **„Handschrift erkennen“** den Durchgang für eine einzelne Seite.
 - **Automatisch aufrecht drehen**: Falsch herum eingelegte Seiten werden anhand des Textes erkannt und gedreht.
 - **Leerseiten weglassen**: Unbedruckte Rückseiten beim Duplex-Scan werden erkannt und abgewählt. Man kann sie per
   Häkchen wieder aufnehmen.
@@ -125,8 +130,10 @@ Unterschiede zum Skript:
 - **Graustufen** geben deutlich kleinere Dateien. Farbe lohnt sich bei Stempeln, Farbmarkierungen und Fotos.
 - Dünnes, brüchiges oder eingerissenes Papier nicht durch den Einzug schicken. Den Epson-Trägerbogen verwenden oder
   das Blatt mit einem anderen Gerät scannen und dann importieren.
-- Die OCR erkennt Druck- und Schreibmaschinenschrift gut, Handschrift nur teilweise. **Fraktur und Sütterlin**
-  erkennt sie nicht. Der Scan landet trotzdem im PDF, nur ohne durchsuchbaren Text.
+- Die OCR erkennt Druck- und Schreibmaschinenschrift gut. Lateinische Handschrift (Schulschrift, Druckbuchstaben)
+  klappt mit dem Handschrift-Durchgang oft, bei unleserlicher Schrift nur teilweise. **Fraktur, Kurrent und
+  Sütterlin** kann Apples Vision nicht lesen. Der Scan landet trotzdem im PDF, nur ohne durchsuchbaren Text.
+- Für Handschrift lohnen sich **400 dpi**, besonders bei kleiner oder blasser Schrift.
 
 ## Aufbau
 
@@ -136,6 +143,7 @@ Unterschiede zum Skript:
 | `Sources/PDFScan/AppModel.swift` | Seitenliste, Hintergrundverarbeitung, Import, Speichern |
 | `Sources/PDFScan/*View*.swift` | SwiftUI-Oberfläche und Einstellungen |
 | `Sources/PDFScanCore/TextRecognizer.swift` | OCR und Erkennung der Ausrichtung (Vision) |
+| `Sources/PDFScanCore/HandwritingRecognizer.swift` | Handschrift-Durchgang: Erkennung, Kontrastverstärkung, Zusammenführen |
 | `Sources/PDFScanCore/BlankPageDetector.swift` | Erkennung von Leerseiten, robust gegen vergilbtes Papier |
 | `Sources/PDFScanCore/SearchablePDFWriter.swift` | PDF mit Scan-Bild und unsichtbarer Textebene |
 | `Sources/PDFScanCore/DocumentBoundaryDetector.swift` | Trennlogik, portiert aus `reference/split_docs.py` |
