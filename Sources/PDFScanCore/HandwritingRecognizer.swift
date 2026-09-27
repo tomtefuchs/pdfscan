@@ -129,7 +129,7 @@ public enum HandwritingRecognizer {
             sampled += 1
         }
         let paper = percentile(histogram, total: sampled, 0.5)
-        let ink = percentile(histogram, total: sampled, 0.005)
+        let ink = percentile(histogram, total: sampled, 0.001)
         let range = Double(paper - ink)
         // Kein Papier (Foto, dunkle Seite) oder keine Striche: unverändert lassen.
         guard paper > 100, range >= 25 else { return ctx.makeImage() }
