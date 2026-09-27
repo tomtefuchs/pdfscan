@@ -29,6 +29,8 @@ struct ScanPage: Identifiable {
     var sourceName: String?
     /// Ordner der Ursprungsdatei – importierte Dokumente werden daneben gespeichert.
     var sourceFolder: URL?
+    /// Der Handschrift-Durchgang hat Text beigesteuert.
+    var isHandwritten = false
 
     var text: String { lines.map(\.text).joined(separator: "\n") }
     var wordCount: Int { lines.reduce(0) { $0 + $1.text.split(separator: " ").count } }
@@ -190,6 +192,11 @@ final class AppModel: ObservableObject {
         process(id, rotation: degrees, detectOrientation: false, isInitial: false)
     }
 
+    /// Seite noch einmal mit Handschrift-Durchgang erkennen, unabhängig von der Einstellung.
+    func recognizeHandwriting(_ id: ScanPage.ID) {
+        process(id, rotation: 0, detectOrientation: false, isInitial: false, handwriting: .always)
+    }
+
     func setExcluded(_ id: ScanPage.ID, _ excluded: Bool) {
         guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         pages[index].excluded = excluded
@@ -332,17 +339,20 @@ final class AppModel: ObservableObject {
     }
 
     /// Drehen (optional automatisch), Texterkennung, Leerseiten-Erkennung und Vorschaubild – im Hintergrund.
-    private func process(_ id: ScanPage.ID, rotation: Int, detectOrientation: Bool, isInitial: Bool) {
+    private func process(_ id: ScanPage.ID, rotation: Int, detectOrientation: Bool, isInitial: Bool,
+                         handwriting: HandwritingMode? = nil) {
         guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         pages[index].state = .processing
         let url = pages[index].url
         let dpi = pages[index].dpi
         let settings = AppSettings.current
+        let handwritingMode = handwriting ?? settings.handwriting
         pendingJobs += 1
         jobs.enter()
         queue.async { [weak self, jobs] in
             let result = PageProcessor.run(url: url, dpi: dpi, rotation: rotation,
-                                           detectOrientation: detectOrientation, languages: settings.languages)
+                                           detectOrientation: detectOrientation, languages: settings.languages,
+                                           handwriting: handwritingMode)
             DispatchQueue.main.async {
                 defer { jobs.leave() }
                 guard let self else { return }
@@ -355,6 +365,7 @@ final class AppModel: ObservableObject {
                 self.pages[index].lines = result.lines
                 self.pages[index].pageText = result.pageText
                 self.pages[index].isBlank = result.isBlank
+                self.pages[index].isHandwritten = result.isHandwritten
                 if let thumbnail = result.thumbnail { self.pages[index].thumbnail = thumbnail }
                 self.pages[index].state = result.error.map { ScanPage.State.failed($0) } ?? .done
                 if isInitial, settings.skipBlankPages, result.isBlank {
@@ -621,10 +632,12 @@ enum PageProcessor {
         var isBlank = false
         var thumbnail: NSImage?
         var pageText: PageText?
+        var isHandwritten = false
         var error: String?
     }
 
-    static func run(url: URL, dpi: Double, rotation: Int, detectOrientation: Bool, languages: [String]) -> Result {
+    static func run(url: URL, dpi: Double, rotation: Int, detectOrientation: Bool, languages: [String],
+                    handwriting: HandwritingMode) -> Result {
         autoreleasepool { () -> Result in
             guard var image = ImageOps.loadImage(at: url) else {
                 return Result(url: url, error: "Bild nicht lesbar")
@@ -646,7 +659,9 @@ enum PageProcessor {
             }
 
             do {
-                result.lines = try TextRecognizer.recognize(image, languages: languages)
+                let recognition = try HandwritingRecognizer.recognizePage(image, languages: languages, mode: handwriting)
+                result.lines = recognition.lines
+                result.isHandwritten = recognition.handwritingImproved
             } catch {
                 result.error = "Texterkennung fehlgeschlagen: \(error.localizedDescription)"
             }

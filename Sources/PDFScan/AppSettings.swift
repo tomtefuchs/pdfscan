@@ -14,10 +14,11 @@ enum SettingsKey {
     static let autoSaveAfterScan = "autoSaveAfterScan"
     static let autoSplit = "autoSplit"
     static let paperFormat = "paperFormat"
+    static let handwriting = "handwriting"
 
     /// Alles, was ein Profil speichert.
     static let profileKeys = [resolution, grayscale, duplex, autoRotate, skipBlankPages, fileSize, languages,
-                              outputFolder, filePrefix, autoSaveAfterScan, autoSplit, paperFormat]
+                              outputFolder, filePrefix, autoSaveAfterScan, autoSplit, paperFormat, handwriting]
 }
 
 /// Momentaufnahme der Einstellungen (gespeichert in UserDefaults, bearbeitet per @AppStorage).
@@ -34,6 +35,7 @@ struct AppSettings {
     var autoSaveAfterScan: Bool
     var autoSplit: Bool
     var paperFormat: PaperFormat
+    var handwriting: HandwritingMode
 
     static let languagePresets: [(label: String, value: String)] = [
         ("Deutsch + Englisch", "de-DE,en-US"),
@@ -63,6 +65,7 @@ struct AppSettings {
             SettingsKey.autoSaveAfterScan: false,
             SettingsKey.autoSplit: true,
             SettingsKey.paperFormat: PaperFormat.auto.rawValue,
+            SettingsKey.handwriting: HandwritingMode.auto.rawValue,
         ])
     }
 
@@ -82,7 +85,8 @@ struct AppSettings {
             filePrefix: DocumentNaming.sanitizedPrefix(d.string(forKey: SettingsKey.filePrefix) ?? "Scan_"),
             autoSaveAfterScan: d.bool(forKey: SettingsKey.autoSaveAfterScan),
             autoSplit: d.bool(forKey: SettingsKey.autoSplit),
-            paperFormat: PaperFormat(rawValue: d.string(forKey: SettingsKey.paperFormat) ?? "") ?? .auto
+            paperFormat: PaperFormat(rawValue: d.string(forKey: SettingsKey.paperFormat) ?? "") ?? .auto,
+            handwriting: HandwritingMode(rawValue: d.string(forKey: SettingsKey.handwriting) ?? "") ?? .auto
         )
     }
 }

@@ -211,8 +211,14 @@ private struct PageRow: View {
                 Label("Leerseite", systemImage: "doc")
                     .foregroundStyle(Theme.textSecondary)
             } else {
-                Label("\(page.wordCount) Wörter", systemImage: "text.alignleft")
-                    .foregroundStyle(Theme.textSecondary)
+                HStack(spacing: 8) {
+                    Label("\(page.wordCount) Wörter", systemImage: "text.alignleft")
+                    if page.isHandwritten {
+                        Label("Handschrift", systemImage: "scribble")
+                            .help("Text teilweise aus dem Handschrift-Durchgang")
+                    }
+                }
+                .foregroundStyle(Theme.textSecondary)
             }
         }
     }
@@ -233,6 +239,7 @@ private struct PageActions: View {
         Button("Nach rechts drehen") { model.rotate(pageID, clockwise: 90) }
         Button("Um 180° drehen") { model.rotate(pageID, clockwise: 180) }
         Divider()
+        Button("Handschrift erkennen") { model.recognizeHandwriting(pageID) }
         Button(excluded ? "Ins PDF übernehmen" : "Nicht ins PDF übernehmen") {
             model.setExcluded(pageID, !excluded)
         }
@@ -301,6 +308,10 @@ struct PageDetailView: View {
                     Button { model.rotate(page.id, clockwise: 90) } label: {
                         IconLabel("Nach rechts drehen", systemImage: "rotate.right.fill")
                     }
+                    Button { model.recognizeHandwriting(page.id) } label: {
+                        IconLabel("Handschrift erkennen", systemImage: "scribble")
+                    }
+                    .help("Seite noch einmal mit Handschrift-Durchgang erkennen")
                     Button { model.delete([page.id]) } label: {
                         IconLabel("Seite löschen", systemImage: "trash.fill")
                     }

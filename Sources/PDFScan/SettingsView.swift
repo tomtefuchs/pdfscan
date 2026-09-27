@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.autoSaveAfterScan) private var autoSave = false
     @AppStorage(SettingsKey.autoSplit) private var autoSplit = true
     @AppStorage(SettingsKey.paperFormat) private var paperFormat = PaperFormat.auto
+    @AppStorage(SettingsKey.handwriting) private var handwriting = HandwritingMode.auto
 
     var body: some View {
         Form {
@@ -59,6 +60,12 @@ struct SettingsView: View {
                         Text(preset.label).tag(preset.value)
                     }
                 }
+                Picker("Handschrift", selection: $handwriting) {
+                    ForEach(HandwritingMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .help("Zweiter Durchgang mit kontrastverstärktem Bild für handschriftliche Seiten. Kurrent und Sütterlin werden nicht erkannt.")
                 Toggle("Seiten automatisch aufrecht drehen", isOn: $autoRotate)
                 Toggle("Leerseiten automatisch weglassen", isOn: $skipBlankPages)
                 Toggle("Automatisch in einzelne Dokumente trennen", isOn: $autoSplit)
