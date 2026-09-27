@@ -3,6 +3,7 @@ import PDFScanCore
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject private var profiles: ProfileStore
     @AppStorage(SettingsKey.resolution) private var resolution = 300
     @AppStorage(SettingsKey.grayscale) private var grayscale = false
     @AppStorage(SettingsKey.duplex) private var duplex = true
@@ -18,6 +19,20 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                LabeledContent("Profil") {
+                    HStack {
+                        Text(profiles.active.name)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        ProfileMenu()
+                    }
+                }
+            } footer: {
+                Text("Alle Einstellungen hier gehören zum aktiven Profil und werden automatisch darin gespeichert.")
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Scannen") {
                 Picker("Auflösung", selection: $resolution) {
                     Text("200 dpi").tag(200)

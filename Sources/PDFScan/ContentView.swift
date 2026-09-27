@@ -1,9 +1,12 @@
 import ImageCaptureCore
+import PDFScanCore
 import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var scanner: ScannerService
+    @EnvironmentObject private var profiles: ProfileStore
+    @State private var choosingProfile = false
 
     var body: some View {
         NavigationSplitView {
@@ -16,6 +19,7 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                ProfileMenu()
                 ScannerPicker()
                 if scanner.phase == .scanning {
                     Button {
@@ -54,6 +58,13 @@ struct ContentView: View {
         .dropDestination(for: URL.self) { urls, _ in
             model.importFiles(urls)
             return true
+        }
+        .sheet(isPresented: $choosingProfile) {
+            ProfileChooser { choosingProfile = false }
+        }
+        .onAppear {
+            // Mehrere Profile: beim Start fragen, mit welchem gearbeitet wird.
+            if profiles.profiles.count > 1 { choosingProfile = true }
         }
         .tint(Theme.accent)
         .preferredColorScheme(.dark)

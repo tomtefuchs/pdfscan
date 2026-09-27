@@ -14,6 +14,10 @@ enum SettingsKey {
     static let autoSaveAfterScan = "autoSaveAfterScan"
     static let autoSplit = "autoSplit"
     static let paperFormat = "paperFormat"
+
+    /// Alles, was ein Profil speichert.
+    static let profileKeys = [resolution, grayscale, duplex, autoRotate, skipBlankPages, fileSize, languages,
+                              outputFolder, filePrefix, autoSaveAfterScan, autoSplit, paperFormat]
 }
 
 /// Momentaufnahme der Einstellungen (gespeichert in UserDefaults, bearbeitet per @AppStorage).

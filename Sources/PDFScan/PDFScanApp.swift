@@ -1,4 +1,5 @@
 import AppKit
+import PDFScanCore
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -18,10 +19,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct PDFScanApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model: AppModel
+    @StateObject private var profiles: ProfileStore
 
     init() {
         AppSettings.registerDefaults()
+        let store = ProfileStore(keys: SettingsKey.profileKeys)
+        _profiles = StateObject(wrappedValue: store)
         _model = StateObject(wrappedValue: AppModel())
+        // Jede Änderung in den Einstellungen landet im aktiven Profil.
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil,
+                                               queue: .main) { _ in store.captureActive() }
     }
 
     var body: some Scene {
@@ -29,6 +36,7 @@ struct PDFScanApp: App {
             ContentView()
                 .environmentObject(model)
                 .environmentObject(model.scanner)
+                .environmentObject(profiles)
                 .frame(minWidth: 900, minHeight: 600)
         }
         .commands {
@@ -62,6 +70,7 @@ struct PDFScanApp: App {
 
         Settings {
             SettingsView()
+                .environmentObject(profiles)
         }
     }
 }

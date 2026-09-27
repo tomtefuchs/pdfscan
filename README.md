@@ -26,6 +26,14 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
   echte Farbe werden in Graustufen gespeichert, vergilbtes Papier wird aufgehellt, das Bild im PDF hat 200 dpi.
   Farbige Stempel, Unterschriften und Fotos bleiben farbig. Die Texterkennung nutzt immer den vollen Scan.
 
+## Profile
+
+Profile speichern alle Einstellungen, vor allem den Zielordner, z. B. „Privat“, „Firma“ oder „Eltern“. Das
+aktive Profil wählst du oben rechts links neben dem Scanner. Dort legst du Profile auch an („Neues Profil…“
+übernimmt die aktuellen Einstellungen und fragt nach dem Zielordner), benennst sie um oder löschst sie. Die
+Einstellungen (⌘,) bearbeiten immer das aktive Profil und speichern Änderungen automatisch darin. Gibt es mehrere
+Profile, fragt die App beim Start, mit welchem du arbeiten willst.
+
 ## Dateinamen
 
 | Teil | Bedeutung |
