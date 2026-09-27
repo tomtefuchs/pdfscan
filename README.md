@@ -12,9 +12,10 @@ Scanner mit macOS-Treiber) einscannt und daraus **durchsuchbare PDFs** macht. Di
 - **OCR** mit Vision (Deutsch, Englisch, Französisch, Italienisch, Spanisch). Der Text liegt unsichtbar über dem Scan.
   Man kann ihn also suchen, markieren und kopieren, und Spotlight findet ihn.
 - **Handschrift** (Einstellung „Handschrift“, Standard „Automatisch“): Sieht eine Seite nach Handschrift aus
-  (viel Tinte, aber wenig oder unsicher erkannter Text), läuft ein zweiter Durchgang auf einem
-  kontrastverstärkten Bild. Das Papier wird weiß, blasse Tinte und Bleistift werden kräftig. Pro Zeile gewinnt
-  das bessere Ergebnis. Solche Seiten tragen in der Liste den Hinweis „Handschrift“. Über das Kontextmenü oder
+  (viel Tinte, aber wenig erkannter Text oder wenige echte Wörter laut macOS-Wörterbuch), läuft ein zweiter
+  Durchgang auf kontrastverstärkten Bildern: in Graustufen, im dunkelsten Farbkanal (entfernt Karoraster) und in
+  Streifen. Pro Zeile gewinnt die Lesart mit den meisten echten Wörtern. Bei flüchtiger Schreibschrift steigt
+  so der Anteil richtig gelesener Wörter spürbar, ein fehlerfreier Text wird es aber nicht. Solche Seiten tragen in der Liste den Hinweis „Handschrift“. Über das Kontextmenü oder
   die Symbolleiste erzwingt **„Handschrift erkennen“** den Durchgang für eine einzelne Seite.
 - **Automatisch aufrecht drehen**: Falsch herum eingelegte Seiten werden anhand des Textes erkannt und gedreht.
 - **Leerseiten weglassen**: Unbedruckte Rückseiten beim Duplex-Scan werden erkannt und abgewählt. Man kann sie per
@@ -81,6 +82,9 @@ cp -R build/PDFScan.app /Applications/
 
 # Tests (OCR, Drehung, Leerseiten, PDF-Erzeugung)
 swift test
+
+# Handschrift-Varianten auf einem echten Scan vergleichen (gibt Text und Wörterbuch-Anteil je Variante aus)
+swift run PDFScan --ocr-vergleich ~/Scans/Notiz.pdf
 ```
 
 Alternativ baut GitHub Actions bei jedem Push eine fertige App (Apple Silicon und Intel). Sie liegt im
