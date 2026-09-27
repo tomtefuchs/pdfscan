@@ -22,6 +22,7 @@ struct PDFScanApp: App {
     @StateObject private var profiles: ProfileStore
 
     init() {
+        OCRComparison.runIfRequested()
         AppSettings.registerDefaults()
         let store = ProfileStore(keys: SettingsKey.profileKeys)
         _profiles = StateObject(wrappedValue: store)

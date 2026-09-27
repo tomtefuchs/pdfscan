@@ -51,6 +51,42 @@ final class HandwritingTests: XCTestCase {
         XCTAssertLessThan(after.min()!, 20)
     }
 
+    func testDarkestChannelTurnsBlueInkBlackAndRemovesGrid() throws {
+        // Weißes Karopapier mit hellblauem Raster und türkisblauer Tinte (Farbwerte aus einem echten Scan).
+        let size = 1000
+        let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+        ctx.setFillColor(CGColor(red: 221 / 255, green: 246 / 255, blue: 251 / 255, alpha: 1))
+        for x in stride(from: 50, to: size, by: 50) { ctx.fill(CGRect(x: x, y: 0, width: 3, height: size)) }
+        ctx.setFillColor(CGColor(red: 30 / 255, green: 170 / 255, blue: 235 / 255, alpha: 1))
+        ctx.fill(CGRect(x: 110, y: 100, width: 300, height: 40))
+        let page = ctx.makeImage()!
+
+        let darkest = grayValues(try XCTUnwrap(HandwritingRecognizer.enhanced(page)))
+        let gray = grayValues(try XCTUnwrap(HandwritingRecognizer.enhanced(page, channel: .luminance)))
+        let inkIndex = (size - 1 - 120) * size + 250, gridIndex = 500 * size + 51
+        XCTAssertLessThan(darkest[inkIndex], 20)
+        XCTAssertEqual(darkest[gridIndex], 255)
+        // In der Helligkeit ist die Tinte nur mittelgrau.
+        XCTAssertGreaterThan(Int(gray[inkIndex]), Int(darkest[inkIndex]))
+    }
+
+    func testStripsMapBoxesBackToPage() throws {
+        let note = makeNote(["Termin am Montag", "beim Zahnarzt", "um halb neun", "nicht vergessen",
+                             "Schlüssel mitnehmen", "und Unterlagen"], ink: 0.2, fontName: "Helvetica")
+        let whole = try TextRecognizer.recognize(note, languages: ["de-DE"])
+        let strips = try HandwritingRecognizer.recognizeInStrips(note, languages: ["de-DE"])
+        for text in ["Zahnarzt", "vergessen", "Unterlagen"] {
+            let a = try XCTUnwrap(whole.first { $0.text.contains(text) }, "\(whole.map(\.text))")
+            let b = try XCTUnwrap(strips.first { $0.text.contains(text) }, "\(strips.map(\.text))")
+            XCTAssertEqual(a.box.midY, b.box.midY, accuracy: 0.01, text)
+            XCTAssertEqual(a.box.minX, b.box.minX, accuracy: 0.01, text)
+        }
+    }
+
     func testEnhancementLeavesDarkImagesAlone() throws {
         let ctx = ImageOps.makeContext(width: 100, height: 100, gray: true)!
         ctx.setFillColor(CGColor(gray: 0.2, alpha: 1))

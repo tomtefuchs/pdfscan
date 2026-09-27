@@ -33,9 +33,10 @@ public struct PageRecognition: Sendable {
 
 /// Handschrift mit Vision – komplett lokal.
 ///
-/// Vision liest Handschrift nur im Modus „accurate“, und bei verblasster Tinte auf vergilbtem Papier
-/// deutlich schlechter als Druckschrift. Der Handschrift-Durchgang erkennt deshalb ein kontrastverstärktes
-/// Graustufenbild (Papier → Weiß, blasse Striche → kräftig) und übernimmt pro Zeile das bessere Ergebnis.
+/// Vision liest Handschrift nur im Modus „accurate“, und bei blasser oder farbiger Tinte deutlich schlechter
+/// als Druckschrift: Vision arbeitet mit der Helligkeit, und darin ist blaue Tinte nur hellgrau.
+/// Der Handschrift-Durchgang erkennt deshalb ein kontrastverstärktes Bild aus dem dunkelsten Farbkanal
+/// (Tinte → Schwarz, Papier und Karoraster → Weiß), ganz und in Streifen, und übernimmt pro Zeile das bessere Ergebnis.
 /// Deutsche Schreibschrift der letzten Jahrzehnte klappt oft, Kurrent und Sütterlin kann Vision nicht lesen.
 public enum HandwritingRecognizer {
     /// Normale Texterkennung, bei Bedarf gefolgt vom Handschrift-Durchgang.
@@ -55,10 +56,57 @@ public enum HandwritingRecognizer {
         return PageRecognition(lines: merged, handwritingPass: true, handwritingImproved: merged != printed)
     }
 
-    /// Der eigentliche Handschrift-Durchgang auf dem kontrastverstärkten Bild.
+    /// Der eigentliche Handschrift-Durchgang: kontrastverstärktes Bild, einmal ganz und einmal in
+    /// überlappenden Streifen (Vision liest kleine Schrift in Ausschnitten deutlich genauer).
     public static func recognize(_ image: CGImage, languages: [String]) throws -> [RecognizedLine] {
         let prepared = enhanced(image) ?? image
-        return try TextRecognizer.recognize(prepared, languages: languages, languageCorrection: true)
+        let whole = try TextRecognizer.recognize(prepared, languages: languages, languageCorrection: true)
+        let strips = try recognizeInStrips(prepared, languages: languages)
+        return merge(whole, strips)
+    }
+
+    /// Texterkennung in waagerechten Streifen mit Überlappung, Boxen auf die ganze Seite umgerechnet.
+    /// Eine an der Streifengrenze zerschnittene Zeile steht in der Überlappung vollständig im Nachbarstreifen;
+    /// beim Zusammenführen gewinnt die vollständige.
+    public static func recognizeInStrips(_ image: CGImage, languages: [String], count: Int = 3,
+                                         overlap: Double = 0.2) throws -> [RecognizedLine] {
+        let height = Double(image.height)
+        let step = height / Double(count)
+        var result: [RecognizedLine] = []
+        for index in 0..<count {
+            // Pixelkoordinaten mit Ursprung oben (wie `cropping(to:)`).
+            let top = max(0, (Double(index) - overlap) * step).rounded()
+            let bottom = min(height, (Double(index + 1) + overlap) * step).rounded()
+            guard bottom > top,
+                  let strip = image.cropping(to: CGRect(x: 0, y: top, width: Double(image.width), height: bottom - top))
+            else { continue }
+            let lines = try TextRecognizer.recognize(strip, languages: languages, languageCorrection: true)
+            let originY = (height - bottom) / height, scaleY = (bottom - top) / height
+            result += lines.map { line in
+                var mapped = line
+                mapped.box = CGRect(x: line.box.minX, y: originY + line.box.minY * scaleY,
+                                    width: line.box.width, height: line.box.height * scaleY)
+                return mapped
+            }
+        }
+        return merge([], result)
+    }
+
+    /// Alle Varianten einzeln – für den Vergleich auf echten Scans (`PDFScan --ocr-vergleich <Datei>`).
+    public static func variants(_ image: CGImage, languages: [String]) -> [(name: String, lines: [RecognizedLine])] {
+        let gray = enhanced(image, channel: .luminance) ?? image
+        let darkest = enhanced(image) ?? image
+        let run = { (image: CGImage) in
+            (try? TextRecognizer.recognize(image, languages: languages, languageCorrection: true)) ?? []
+        }
+        return [
+            ("Normal (ohne Handschrift-Durchgang)", (try? TextRecognizer.recognize(image, languages: languages)) ?? []),
+            ("Grau, Kontrast verstärkt", run(gray)),
+            ("Dunkelster Farbkanal, Kontrast verstärkt", run(darkest)),
+            ("Dunkelster Farbkanal, in Streifen", (try? recognizeInStrips(darkest, languages: languages)) ?? []),
+            ("Ergebnis der App (Modus „Immer“)",
+             (try? recognizePage(image, languages: languages, mode: .always).lines) ?? []),
+        ]
     }
 
     /// Sieht die Seite nach Handschrift aus? Grobe Faustregel, bewusst großzügig –
@@ -112,15 +160,44 @@ public enum HandwritingRecognizer {
         return smaller > 0 && intersection.width * intersection.height >= smaller * 0.5
     }
 
+    public enum Channel: Sendable {
+        /// Normale Helligkeit – farbige Tinte (Blau, Türkis) wird dabei hellgrau.
+        case luminance
+        /// Dunkelster der drei Farbkanäle je Pixel: farbige Tinte wird fast schwarz,
+        /// hellblaue oder graue Karo- und Linienraster bleiben hell und verschwinden beim Spreizen.
+        case darkest
+    }
+
     /// Graustufen mit gespreiztem Kontrast: Papierton → Weiß, dunkelste Striche → Schwarz,
     /// Zwischentöne mit Gamma > 1 abgedunkelt, damit blasse Tinte und Bleistift kräftig werden.
-    public static func enhanced(_ image: CGImage) -> CGImage? {
-        guard let ctx = ImageOps.makeContext(width: image.width, height: image.height, gray: true) else { return nil }
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    public static func enhanced(_ image: CGImage, channel: Channel = .darkest) -> CGImage? {
+        let width = image.width, height = image.height
+        guard let ctx = ImageOps.makeContext(width: width, height: height, gray: true) else { return nil }
+        let bytesPerRow = ctx.bytesPerRow
         guard let data = ctx.data else { return nil }
-        let width = image.width, height = image.height, bytesPerRow = ctx.bytesPerRow
-        let count = bytesPerRow * height
-        let pixels = data.bindMemory(to: UInt8.self, capacity: count)
+        let pixels = data.bindMemory(to: UInt8.self, capacity: bytesPerRow * height)
+
+        switch channel {
+        case .luminance:
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        case .darkest:
+            guard let rgb = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+                  let rgbData = rgb.data
+            else { return nil }
+            rgb.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            rgb.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            rgb.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            let source = rgbData.bindMemory(to: UInt8.self, capacity: width * height * 4)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let i = (y * width + x) * 4
+                    pixels[y * bytesPerRow + x] = min(source[i], source[i + 1], source[i + 2])
+                }
+            }
+        }
 
         // Nur echte Pixel zählen – die Füllbytes am Zeilenende sind 0 und würden als Tinte gelten.
         var histogram = [Int](repeating: 0, count: 256)
@@ -135,7 +212,7 @@ public enum HandwritingRecognizer {
         let paper = percentile(histogram, total: sampled, 0.5)
         let ink = percentile(histogram, total: sampled, 0.001)
         let range = Double(paper - ink)
-        // Kein Papier (Foto, dunkle Seite) oder keine Striche: unverändert lassen.
+        // Kein Papier (Foto, dunkle Seite) oder keine Striche: nur umwandeln, nicht spreizen.
         guard paper > 100, range >= 25 else { return ctx.makeImage() }
 
         let white = Double(paper) - range * 0.15
@@ -145,7 +222,9 @@ public enum HandwritingRecognizer {
             let t = max(0, min(1, (Double(v) - black) / (white - black)))
             table[v] = UInt8((pow(t, 1.8) * 255).rounded())
         }
-        for i in 0..<count { pixels[i] = table[Int(pixels[i])] }
+        for y in 0..<height {
+            for x in 0..<width { pixels[y * bytesPerRow + x] = table[Int(pixels[y * bytesPerRow + x])] }
+        }
         return ctx.makeImage()
     }
 
